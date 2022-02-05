@@ -8,6 +8,9 @@ edition = "2021"
 name = "carbon"
 crate-type = ["cdylib"]
 
+[dependencies.ordered-float]
+version = "2.0"
+
 [dependencies.itertools]
 version = "0.10.0"
 

@@ -44,6 +44,40 @@ fn fitness(a : &Vec<i32>, b : &Vec<i32>) -> f64 {
     return sum;
 }
 
+// fn top_two(population : &Population, problem: &mut Problem) -> 
+//           (usize, usize) {
+//     assert!(population.len() > 1); // Need at least two members
+//     let (mut ai  , mut bi  ) = (0usize, 0usize);
+//     let (mut afit, mut bfit) = (0.0f64, 0.0f64);
+//     if problem.minimizing {
+//         afit = f64::INFINITY;
+//         bfit = f64::INFINITY;
+//     } else {
+//         afit = -1.0 * f64::INFINITY;
+//         bfit = -1.0 * f64::INFINITY;
+//     }
+// 
+//     for mi in 0..population.len() {
+//         let member = population.get(mi).expect("Logic Error");
+//         let fit: f64 = (problem.fitness)(&member);
+//         if problem.minimizing {
+//             if fit < afit {
+//                 afit = fit; ai = mi;
+//             } else if fit < bfit {
+//                 bfit = fit; bi = mi;
+//             }
+//         } else {
+//             if fit > afit {
+//                 afit = fit; ai = mi;
+//             } else if fit > bfit {
+//                 bfit = fit; bi = mi;
+//             }
+//         }
+//     }
+//     println!("Fitnesses: {}, {} ({}, {})", afit, bfit, ai, bi);
+//     return (ai, bi);
+// }
+
 fn select(population : &VecDeque<Vec<i32>>, 
           target : &Vec<i32>, 
           minimizing : bool) -> usize {

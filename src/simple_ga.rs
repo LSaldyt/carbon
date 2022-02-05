@@ -1,9 +1,11 @@
 use rand::Rng;
-use std::collections::VecDeque;
 use std::assert;
+use std::collections::VecDeque;
+use ordered_float::OrderedFloat;
 
 type Member     = Vec<i32>; // In our problem, members are simple vectors
-type Population = VecDeque<Member>; // Population is deque of members
+type Population = VecDeque<Member>; // Population is normal vec of members
+type of64 = OrderedFloat<f64>;
 
 struct Problem<'a> {
     rng: &'a mut rand::rngs::ThreadRng,
@@ -11,7 +13,7 @@ struct Problem<'a> {
     max: i32,
     length: usize,
     pop_size: usize,
-    fitness: fn(&Member) -> f64,
+    fitness: fn(&Member) -> of64,
     minimizing: bool,
 }
 
@@ -66,39 +68,12 @@ fn crossover(a: Member, b: Member, problem : &mut Problem) ->
     return (new_a, new_b)
 }
 
-fn top_two(population : &Population, problem: &mut Problem) -> 
-          (usize, usize) {
-    assert!(population.len() > 1); // Need at least two members
-    let (mut ai  , mut bi  ) = (0usize, 0usize);
-    let (mut afit, mut bfit) = (0.0f64, 0.0f64);
-    if problem.minimizing {
-        afit = f64::INFINITY;
-        bfit = f64::INFINITY;
-    } else {
-        afit = -1.0 * f64::INFINITY;
-        bfit = -1.0 * f64::INFINITY;
-    }
-
-    for mi in 0..population.len() {
-        let member = population.get(mi).expect("Logic Error");
-        let fit: f64 = (problem.fitness)(&member);
-        if problem.minimizing {
-            if fit < afit {
-                afit = fit; ai = mi;
-            } else if fit < bfit {
-                bfit = fit; bi = mi;
-            }
-        } else {
-            if fit > afit {
-                afit = fit; ai = mi;
-            } else if fit > bfit {
-                bfit = fit; bi = mi;
-            }
-        }
-    }
-    println!("Fitnesses: {}, {} ({}, {})", afit, bfit, ai, bi);
-    return (ai, bi);
+fn select(population : &mut Population, problem: &mut Problem) -> () {
+    println!("Debug: {:?}", population);
+    population.make_contiguous().sort_by_cached_key(|m| (problem.fitness)(m));
+    println!("Debug: {:?}", population);
 }
+
 
 fn decode(x : &Member) -> f64 {
     // First, map x (vec in RN x {0, 1}) to x in R1
@@ -109,15 +84,16 @@ fn decode(x : &Member) -> f64 {
     return mapped
 }
 
-fn problem_fitness(x : &Member) -> f64 {
+fn problem_fitness(x : &Member) -> of64 {
     // Assume x in [-0.5, 1]
     let mapped = decode(x);
     if mapped < -0.5 || mapped > 1.0 { 
         // Out of bounds, so use -∞ fitness
-        return -1.0 * f64::INFINITY
+        // You would need to update this to make the fitness more generic
+        return OrderedFloat(-1.0 * f64::INFINITY)
     }
     let loss: f64 = mapped * f64::sin(10.0 * std::f64::consts::PI * mapped) + 1.0;
-    return loss
+    return OrderedFloat(loss)
 }
 
 
@@ -139,12 +115,14 @@ pub fn simple_ga<'a>(iterations : u32) {
     println!("Fitness: {}", (problem.fitness)(&member));
     let mut population = initialize(&mut problem);
 
-    println!("Iterations: {}", iterations);
-    for i in 0..iterations {
-        let (ai, bi) = top_two(&population, &mut problem);
-        println!("Iteration: {}", i);
-        println!{"Top two: {} {}", ai, bi}
-    }
+    select(&mut population, &mut problem);
+
+    // println!("Iterations: {}", iterations);
+    // for i in 0..iterations {
+    //     let (ai, bi) = top_two(&population, &mut problem);
+    //     println!("Iteration: {}", i);
+    //     println!{"Top two: {} {}", ai, bi}
+    // }
 
     //for i in 0..iterations {
     //    let best_index = select(&population, &target, true);
