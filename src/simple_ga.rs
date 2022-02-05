@@ -188,19 +188,15 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
             population[ki] = mem.to_vec(); // Overwrite k-worst members
         }
 
+        // Print metrics on final iteration
+        if i == iterations - 1 {
+            println!("Final metrics: {:?}", metrics);
+        }
         // Write metrics to file, flush full file periodically 
         wtr.serialize(metrics)?; // Juicy, juicy data :)
         if i % write_period == 0 {
             wtr.flush()?; 
         }
     }
-
-    //for i in 0..iterations {
-    //    let best_index = select(&population, &target, true);
-    //    let copied  = population.get(best_index).clone().expect("Cannot clone").to_vec();
-    //    let mutated = mutate(copied, &mut rng);
-    //    population.push_back(mutated);
-    //    population.pop_front();
-    //}
     Ok(())
 }
