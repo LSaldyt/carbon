@@ -10,9 +10,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 statistical = "1.0.0"
-ordered-float = "2.0"
+ordered-float = { version = "2.0", features = ["serde"] }
 itertools = "0.10.0"
 rand = "0.8.3"
+csv = "1.1.6"
+serde = { version = "1.0.136", features = ["derive"] }
 
 [dependencies.pyo3]
 version = "0.13.1"

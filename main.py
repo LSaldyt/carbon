@@ -10,6 +10,6 @@ from time import time
 
 print(dir(carbon))
 start = time()
-carbon.run_simple_ga(10)
+carbon.run_simple_ga(10, 'metrics.csv')
 end   = time()
 print(f'Duration: {(end - start):0.6f}')

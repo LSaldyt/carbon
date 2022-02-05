@@ -1,10 +1,16 @@
 use rand::Rng;
 // use std::assert;
 use std::collections::VecDeque;
-use ordered_float::OrderedFloat;
-type Of64 = OrderedFloat<f64>;
 
 use statistical::*; // Hail satan
+
+extern crate csv;
+use std::error::Error;
+use csv::Writer;
+use serde::{Serialize, Serializer};
+
+use ordered_float::OrderedFloat;
+type Of64 = OrderedFloat<f64>;
 
 type Member = Vec<i32>; // In our problem, members are simple vectors
 type Population = VecDeque<Member>; // Population is normal vec of members
@@ -13,6 +19,7 @@ struct Problem<'a> {
     rng: &'a mut rand::rngs::ThreadRng,
     min: i32,
     max: i32,
+    k : usize,
     length: usize,
     pop_size: usize,
     fitness: fn(&Member) -> Of64,
@@ -21,7 +28,7 @@ struct Problem<'a> {
     min_fit : Of64
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Metrics {
     min   : Of64,
     max   : Of64,
@@ -122,7 +129,10 @@ fn problem_fitness(x : &Member) -> Of64 {
 }
 
 
-pub fn simple_ga<'a>(iterations : u32) {
+pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) -> 
+                    Result<(), Box<dyn Error>>{
+    let mut wtr = Writer::from_path(metrics_filename)?;
+    wtr.write_record(&["min", "max", "avg", "stdev"])?;
 
     let mut rng = rand::thread_rng();
     let mut problem = Problem{
@@ -150,8 +160,10 @@ pub fn simple_ga<'a>(iterations : u32) {
     for i in 0..iterations {
         // Sort the population, collect metrics
         let metrics = select(&mut population, &mut problem);
-
-
+        wtr.serialize(metrics)?;
+        if i % 10 == 0 {
+            wtr.flush()?;
+        }
     }
 
     //for i in 0..iterations {
@@ -161,4 +173,5 @@ pub fn simple_ga<'a>(iterations : u32) {
     //    population.push_back(mutated);
     //    population.pop_front();
     //}
+    Ok(())
 }
