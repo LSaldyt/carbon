@@ -5,8 +5,8 @@ use std::assert;
 type Member     = Vec<i32>; // In our problem, members are simple vectors
 type Population = VecDeque<Member>; // Population is deque of members
 
-struct Problem {
-    rng: &mut rand::rngs::ThreadRng,
+struct Problem<'a> {
+    rng: &'a mut rand::rngs::ThreadRng,
     min: i32,
     max: i32,
     length: usize,
@@ -21,7 +21,7 @@ fn num(min: i32, max: i32, rng : &mut rand::rngs::ThreadRng) -> i32 {
     return rng.gen_range(min..max+1);
 }
 
-fn generate(problem: Problem) -> Member {
+fn generate(problem: &mut Problem) -> Member {
     // Generate a random length l vector constrained to a range (min, max)
     // The first "bit" is reserved for sign
     let mut initial = vec![0; problem.length];
@@ -32,16 +32,16 @@ fn generate(problem: Problem) -> Member {
     return initial
 }
 
-fn initialize(problem: Problem) -> Population {
+fn initialize(problem: &mut Problem) -> Population {
     // Create the initial population
-    let mut population: Population = VecDeque::with_capacity(problem.popsize);
-    for _i in 0..problem.popsize {
+    let mut population: Population = VecDeque::with_capacity(problem.pop_size);
+    for _i in 0..problem.pop_size {
         population.push_back(generate(problem));
     }
     return population
 }
 
-fn mutate(mut member : Member, problem: Problem) -> Member{
+fn mutate(mut member : Member, problem: &mut Problem) -> Member{
     // Mutation: Point-based mutation of sign or decimals
     let index = problem.rng.gen_range(0..member.len());
     let mut new_member = member.to_vec();
@@ -53,7 +53,7 @@ fn mutate(mut member : Member, problem: Problem) -> Member{
     return new_member
 }
 
-fn crossover(mut a : Member, mut b : Member, problem : Problem) -> 
+fn crossover(a: Member, b: Member, problem : &mut Problem) -> 
             (Member, Member){
     // Point based crossover @ a random point
     // Generate two offspring from two parents
@@ -66,8 +66,8 @@ fn crossover(mut a : Member, mut b : Member, problem : Problem) ->
     return (new_a, new_b)
 }
 
-fn top_two(population : &Population, 
-           target : &Member, problem: Problem) -> (usize, usize) {
+fn top_two(population : &Population, problem: &mut Problem) -> 
+          (usize, usize) {
     assert!(population.len() > 1); // Need at least two members
     let (mut ai  , mut bi  ) = (0usize, 0usize);
     let (mut afit, mut bfit) = (0.0f64, 0.0f64);
@@ -81,7 +81,7 @@ fn top_two(population : &Population,
 
     for mi in 0..population.len() {
         let member = population.get(mi).expect("Logic Error");
-        let fit: f64 = problem.fitness(&member, &target);
+        let fit: f64 = (problem.fitness)(&member);
         if problem.minimizing {
             if fit < afit {
                 afit = fit; ai = mi;
@@ -89,7 +89,7 @@ fn top_two(population : &Population,
                 bfit = fit; bi = mi;
             }
         } else {
-            if fit > bfit {
+            if fit > afit {
                 afit = fit; ai = mi;
             } else if fit > bfit {
                 bfit = fit; bi = mi;
@@ -104,7 +104,7 @@ fn decode(x : &Member) -> f64 {
     // First, map x (vec in RN x {0, 1}) to x in R1
     let mut mapped : f64 = -1.0 * x[0] as f64;
     for i in 1..x.len() {
-        mapped += x[i] as f64 / f64::pow(10., i);
+        mapped += x[i] as f64 / f64::powf(10., i as f64);
     }
     return mapped
 }
@@ -121,26 +121,32 @@ fn problem_fitness(x : &Member) -> f64 {
 }
 
 
-pub fn simple_ga(iterations : u32) {
+pub fn simple_ga<'a>(iterations : u32) {
 
-    //let mut rng = rand::thread_rng();
-    let problem = Problem{
-        rng: rand::thread_rng(),
+    let mut rng = rand::thread_rng();
+    let mut problem = Problem{
+        rng: &mut rng,
         min: 0,
         max: 9,
         length: 5,
-        pop_size: 10,
+        pop_size: 100,
         fitness: problem_fitness,
-        minimizing: true,
+        minimizing: false,
     };
 
-    let member = generate(problem);
+    let member = generate(&mut problem);
     println!("Member: {:#?}", &member);
-    println!("Fitness: {}", problem.fitness(&member));
-    let mut population = initialize(problem);
+    println!("Fitness: {}", (problem.fitness)(&member));
+    let mut population = initialize(&mut problem);
+
+    println!("Iterations: {}", iterations);
+    for i in 0..iterations {
+        let (ai, bi) = top_two(&population, &mut problem);
+        println!("Iteration: {}", i);
+        println!{"Top two: {} {}", ai, bi}
+    }
 
     //for i in 0..iterations {
-    //    println!("Iteration: {}", i);
     //    let best_index = select(&population, &target, true);
     //    let copied  = population.get(best_index).clone().expect("Cannot clone").to_vec();
     //    let mutated = mutate(copied, &mut rng);
