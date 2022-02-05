@@ -1,5 +1,5 @@
 use rand::Rng;
-// use std::assert;
+use std::assert;
 use std::collections::VecDeque;
 
 use statistical::*; // Hail satan
@@ -7,7 +7,7 @@ use statistical::*; // Hail satan
 extern crate csv;
 use std::error::Error;
 use csv::Writer;
-use serde::{Serialize, Serializer};
+use serde::{Serialize};
 
 use ordered_float::OrderedFloat;
 type Of64 = OrderedFloat<f64>;
@@ -62,7 +62,7 @@ fn initialize(problem: &mut Problem) -> Population {
     return population
 }
 
-fn mutate(mut member : Member, problem: &mut Problem) -> Member{
+fn mutate(member : &Member, problem: &mut Problem) -> Member{
     // Mutation: Point-based mutation of sign or decimals
     let index = problem.rng.gen_range(0..member.len());
     let mut new_member = member.to_vec();
@@ -74,7 +74,7 @@ fn mutate(mut member : Member, problem: &mut Problem) -> Member{
     return new_member
 }
 
-fn crossover(a: Member, b: Member, problem : &mut Problem) -> 
+fn crossover(a: &Member, b: &Member, problem : &mut Problem) -> 
             (Member, Member){
     // Point based crossover @ a random point
     // Generate two offspring from two parents
@@ -132,6 +132,7 @@ fn problem_fitness(x : &Member) -> Of64 {
 pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) -> 
                     Result<(), Box<dyn Error>>{
     let mut wtr = Writer::from_path(metrics_filename)?;
+    let write_period = 10;
     wtr.write_record(&["min", "max", "avg", "stdev"])?;
 
     let mut rng = rand::thread_rng();
@@ -148,6 +149,8 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
         max_fit: OrderedFloat(f64::INFINITY)
     };
 
+    assert!(problem.k <= problem.pop_size, "Problem.k={} should be less than population size={}", problem.k, problem.pop_size);
+
     let member = generate(&mut problem);
     println!("Member: {:#?}", &member);
     println!("Fitness: {}", (problem.fitness)(&member));
@@ -160,8 +163,23 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
     for i in 0..iterations {
         // Sort the population, collect metrics
         let metrics = select(&mut population, &mut problem);
+        // Restructure the population
+        for ki in 0..problem.k {
+            let ki_n = ki + 1; // Next member
+            if ki_n < problem.k {
+                // Run crossover between two members
+                println!("Crossover!");
+                let (a_new, b_new) = crossover(&population[ki], 
+                                               &population[ki_n], 
+                                               &mut problem);
+            }
+            println!("Mutation!");
+            let new_mem = mutate(&population[ki], &mut problem);
+        }
+
+        // Write metrics to file, flush full file periodically 
         wtr.serialize(metrics)?;
-        if i % 10 == 0 {
+        if i % write_period == 0 {
             wtr.flush()?;
         }
     }
