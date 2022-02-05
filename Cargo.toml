@@ -8,14 +8,11 @@ edition = "2021"
 name = "carbon"
 crate-type = ["cdylib"]
 
-[dependencies.ordered-float]
-version = "2.0"
-
-[dependencies.itertools]
-version = "0.10.0"
-
-[dependencies.rand]
-version = "0.8.3"
+[dependencies]
+statistical = "1.0.0"
+ordered-float = "2.0"
+itertools = "0.10.0"
+rand = "0.8.3"
 
 [dependencies.pyo3]
 version = "0.13.1"

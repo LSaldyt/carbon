@@ -1,11 +1,13 @@
 use rand::Rng;
-use std::assert;
+// use std::assert;
 use std::collections::VecDeque;
 use ordered_float::OrderedFloat;
+type Of64 = OrderedFloat<f64>;
 
-type Member     = Vec<i32>; // In our problem, members are simple vectors
+use statistical::*; // Hail satan
+
+type Member = Vec<i32>; // In our problem, members are simple vectors
 type Population = VecDeque<Member>; // Population is normal vec of members
-type of64 = OrderedFloat<f64>;
 
 struct Problem<'a> {
     rng: &'a mut rand::rngs::ThreadRng,
@@ -13,8 +15,18 @@ struct Problem<'a> {
     max: i32,
     length: usize,
     pop_size: usize,
-    fitness: fn(&Member) -> of64,
+    fitness: fn(&Member) -> Of64,
     minimizing: bool,
+    max_fit : Of64,
+    min_fit : Of64
+}
+
+#[derive(Debug)]
+struct Metrics {
+    min   : Of64,
+    max   : Of64,
+    avg   : Of64,
+    stdev : Of64
 }
 
 fn num(min: i32, max: i32, rng : &mut rand::rngs::ThreadRng) -> i32 {
@@ -68,10 +80,23 @@ fn crossover(a: Member, b: Member, problem : &mut Problem) ->
     return (new_a, new_b)
 }
 
-fn select(population : &mut Population, problem: &mut Problem) -> () {
-    println!("Debug: {:?}", population);
-    population.make_contiguous().sort_by_cached_key(|m| (problem.fitness)(m));
-    println!("Debug: {:?}", population);
+fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
+    // Issue: this calculates fitness twice, and I'm not good enough at
+    // Rust to figure out exactly how to fix it.
+    let mut fitnesses: Vec<Of64> = Vec::with_capacity(problem.pop_size);
+    for i in 0..problem.pop_size {
+        let f = (problem.fitness)(&population[i]);
+        if f > problem.min_fit && 
+           f < problem.max_fit {
+        fitnesses.push(f);
+       }
+    }
+    population.make_contiguous().sort_by_key(|m| (problem.fitness)(m));
+    let avg = mean(&fitnesses);
+    return Metrics{ min : fitnesses.iter().min().unwrap().clone(),
+                    max : fitnesses.iter().max().unwrap().clone(),
+                    avg : avg,
+                    stdev : standard_deviation(&fitnesses, Some(avg))}
 }
 
 
@@ -84,7 +109,7 @@ fn decode(x : &Member) -> f64 {
     return mapped
 }
 
-fn problem_fitness(x : &Member) -> of64 {
+fn problem_fitness(x : &Member) -> Of64 {
     // Assume x in [-0.5, 1]
     let mapped = decode(x);
     if mapped < -0.5 || mapped > 1.0 { 
@@ -108,6 +133,8 @@ pub fn simple_ga<'a>(iterations : u32) {
         pop_size: 100,
         fitness: problem_fitness,
         minimizing: false,
+        min_fit: OrderedFloat(-1.0 * f64::INFINITY),
+        max_fit: OrderedFloat(f64::INFINITY)
     };
 
     let member = generate(&mut problem);
@@ -115,7 +142,8 @@ pub fn simple_ga<'a>(iterations : u32) {
     println!("Fitness: {}", (problem.fitness)(&member));
     let mut population = initialize(&mut problem);
 
-    select(&mut population, &mut problem);
+    let metrics = select(&mut population, &mut problem);
+    println!("Metrics: {:?}", metrics);
 
     // println!("Iterations: {}", iterations);
     // for i in 0..iterations {
