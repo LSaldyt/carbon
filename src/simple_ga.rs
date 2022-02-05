@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{seq::IteratorRandom, thread_rng, rngs::ThreadRng, Rng};
 use std::assert;
 use std::collections::VecDeque;
 
@@ -16,14 +16,13 @@ type Member = Vec<i32>; // In our problem, members are simple vectors
 type Population = VecDeque<Member>; // Population is normal vec of members
 
 struct Problem<'a> {
-    rng: &'a mut rand::rngs::ThreadRng,
+    rng: &'a mut ThreadRng,
     min: i32,
     max: i32,
     k : usize,
     length: usize,
     pop_size: usize,
     fitness: fn(&Member) -> Of64,
-    minimizing: bool,
     max_fit : Of64,
     min_fit : Of64
 }
@@ -36,7 +35,7 @@ struct Metrics {
     stdev : Of64
 }
 
-fn num(min: i32, max: i32, rng : &mut rand::rngs::ThreadRng) -> i32 {
+fn num(min: i32, max: i32, rng : &mut ThreadRng) -> i32 {
     // Silly convenience function because "gen_range"
     // is much longer to type than "num"
     return rng.gen_range(min..max+1);
@@ -135,7 +134,7 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
     let write_period = 10;
     wtr.write_record(&["min", "max", "avg", "stdev"])?;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     let mut problem = Problem{
         rng: &mut rng,
         min: 0,
@@ -144,7 +143,6 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
         length: 5,
         pop_size: 100,
         fitness: problem_fitness,
-        minimizing: false,
         min_fit: OrderedFloat(-1.0 * f64::INFINITY),
         max_fit: OrderedFloat(f64::INFINITY)
     };
@@ -163,24 +161,37 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
     for i in 0..iterations {
         // Sort the population, collect metrics
         let metrics = select(&mut population, &mut problem);
-        // Restructure the population
+        // Worst member is at index 0, best at index -1
+        // Restructure the population by replacing the top-k
+        // Fill a pool of at least members created via both mutation
+        //   and via crossover.
+        let mut pool = Population::with_capacity(problem.k);
         for ki in 0..problem.k {
             let ki_n = ki + 1; // Next member
             if ki_n < problem.k {
                 // Run crossover between two members
-                println!("Crossover!");
                 let (a_new, b_new) = crossover(&population[ki], 
                                                &population[ki_n], 
                                                &mut problem);
+                pool.push_back(a_new); pool.push_back(b_new);
             }
-            println!("Mutation!");
-            let new_mem = mutate(&population[ki], &mut problem);
+            // Create two mutated members for every two crossover members
+            //   this makes a uniform choice even between mut<>crossover
+            for _mut_i in 0..1 {
+                let new_mem = mutate(&population[ki], &mut problem);
+                pool.push_back(new_mem);
+            }
+        }
+        let sampled = pool.iter().choose_multiple(&mut problem.rng, 
+                                                  problem.k);
+        for (ki, mem) in sampled.iter().enumerate() {
+            population[ki] = mem.to_vec(); // Overwrite k-worst members
         }
 
         // Write metrics to file, flush full file periodically 
-        wtr.serialize(metrics)?;
+        wtr.serialize(metrics)?; // Juicy, juicy data :)
         if i % write_period == 0 {
-            wtr.flush()?;
+            wtr.flush()?; 
         }
     }
 
