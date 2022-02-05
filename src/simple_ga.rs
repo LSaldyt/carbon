@@ -129,6 +129,7 @@ pub fn simple_ga<'a>(iterations : u32) {
         rng: &mut rng,
         min: 0,
         max: 9,
+        k : 2, // Select the top-k population members
         length: 5,
         pop_size: 100,
         fitness: problem_fitness,
@@ -143,14 +144,15 @@ pub fn simple_ga<'a>(iterations : u32) {
     let mut population = initialize(&mut problem);
 
     let metrics = select(&mut population, &mut problem);
-    println!("Metrics: {:?}", metrics);
+    println!("Initial metrics: {:?}", metrics);
 
-    // println!("Iterations: {}", iterations);
-    // for i in 0..iterations {
-    //     let (ai, bi) = top_two(&population, &mut problem);
-    //     println!("Iteration: {}", i);
-    //     println!{"Top two: {} {}", ai, bi}
-    // }
+    println!("Running GA for {} iterations", iterations);
+    for i in 0..iterations {
+        // Sort the population, collect metrics
+        let metrics = select(&mut population, &mut problem);
+
+
+    }
 
     //for i in 0..iterations {
     //    let best_index = select(&population, &target, true);
