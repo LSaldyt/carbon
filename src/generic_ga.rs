@@ -12,13 +12,16 @@ use serde::{Serialize};
 use ordered_float::OrderedFloat;
 type Of64 = OrderedFloat<f64>;
 
-type Member = Vec<i32>; // In our problem, members are simple vectors
-type Population = VecDeque<Member>; // Population is normal vec of members
+use std::clone::Clone;
+use std::ops::Sub;
 
-struct Problem<'a> {
+type Member<T:Clone> = Vec::<T>; // In our problem, members are simple vectors
+type Population<T:Clone> = VecDeque<Member<T>>; // Population is normal vec of members
+
+struct Problem<'a, T> {
     rng: &'a mut ThreadRng,
-    min: i32,
-    max: i32,
+    min: T,
+    max: T,
     k : usize,
     length: usize,
     pop_size: usize,
@@ -27,7 +30,7 @@ struct Problem<'a> {
     elitism : usize,
     minimizing : bool,
     init_rand  : bool,
-    fitness: fn(&Member) -> Of64,
+    fitness: fn(&Member::<T>) -> Of64,
     max_fit : Of64,
     min_fit : Of64
 }
@@ -46,29 +49,98 @@ fn flip(p : Of64, rng : &mut ThreadRng) -> bool {
     return y < p 
 }
 
-fn num(min: i32, max: i32, rng : &mut ThreadRng) -> i32 {
-    // Silly convenience function because "gen_range"
-    // is much longer to type than "num"
-    return rng.gen_range(min..max+1);
+trait Representation {
+    fn num<T:Clone>(min: T, max: T, rng: &mut ThreadRng) -> T;
+    fn decode<T:Clone>(x : &Member::<T>) -> f64;
+    fn mutate<T:Clone>(member : &Member<T>, problem: &mut Problem<T>) 
+            -> Member<T>;
+    fn generate<T:Clone>(problem: &mut Problem<T>) -> Member<T>;
 }
 
-fn generate(problem: &mut Problem) -> Member {
-    // Generate a random length l vector constrained to a range (min, max)
-    // The first "bit" is reserved for sign
-    let mut initial = vec![0; problem.length];
-    initial[0] = num(0, 1, problem.rng);
-    for i in 1..problem.length {
-        initial[i] = num(problem.min, problem.max, problem.rng);
+impl Representation for f64 where f64: Sub<F64> {
+
+    fn num<F64>(min: F64, max: F64, rng : &mut ThreadRng) -> F64 {
+        let y : f64 = rng.gen();
+        return y * (max - min) - min // Scale & shift
     }
-    return initial
+
+    fn decode<F64>(x : &Member<F64>) -> f64 {
+        let mut mapped : f64 = x[0];
+        for i in 1..x.len() {
+            mapped *= x[i];
+        }
+        return mapped
+    }
+
+    fn mutate<F64>(member : &Member<F64>, problem: &mut Problem<F64>) -> Member<F64>{
+        // Mutation: Point-based mutation of sign or decimals
+        assert!(member.len() > 1);
+        let index = problem.rng.gen_range(0..member.len());
+        let mut new_member = member.to_vec();
+        new_member[0] = Representation::num::<F64>(problem.min, problem.max, problem.rng);
+        return new_member
+    }
+
+    fn generate<F64>(problem: &mut Problem<F64>) -> Member<F64> {
+        // Generate a random length l vector constrained to a range (min, max)
+        // The first "bit" is reserved for sign
+        let mut initial = vec![0; problem.length];
+        for i in 0..problem.length {
+            initial[i] = Representation::num::<F64>(problem.min, problem.max, problem.rng);
+        }
+        return initial
+    }
+}
+impl Representation for i32 where i32: Sub<I32> {
+
+    fn num<I32>(min: I32, max: I32, rng : &mut ThreadRng) -> I32 {
+        // Silly convenience function because "gen_range"
+        // is much longer to type than "num"
+        return rng.gen_range(min..max+1);
+    }
+
+    fn decode<I32>(x : &Member<I32>) -> f64 {
+        // First, map x (vec in RN x {0, 1}) to x in R1
+        let mut mapped : f64 = 0.;
+        for i in 1..x.len() {
+            mapped += x[i] as f64 / f64::powf(10., i as f64);
+        }
+        if x[0] == 1 {
+            mapped = mapped * -1.0;
+        }
+        return mapped
+    }
+    fn mutate<I32>(member : &Member<I32>, problem: &mut Problem<I32>) -> Member<I32>{
+        assert!(member.len() > 1);
+        // Mutation: Point-based mutation of sign or decimals
+        let index = problem.rng.gen_range(0..member.len());
+        let mut new_member = member.to_vec();
+        if index == 0 {
+            new_member[index] = Representation::num::<I32>(0, 1, problem.rng);    
+        } else {
+            new_member[index] = Representation::num::<I32>(problem.min, problem.max, problem.rng);
+        }
+        return new_member
+    }
+
+    fn generate<I32>(problem: &mut Problem<I32>) -> Member<I32> {
+        // Generate a random length l vector constrained to a range (min, max)
+        // The first "bit" is reserved for sign
+        let mut initial = vec![0; problem.length];
+        initial[0] = Representation::num::<I32>(0, 1, problem.rng);
+        for i in 1..problem.length {
+            initial[i] = Representation::num::<I32>(problem.min, problem.max, problem.rng);
+        }
+        return initial
+    }
 }
 
-fn initialize(problem: &mut Problem) -> Population {
+fn initialize<T:Clone>(problem: &mut Problem<T>) -> Population<T> {
     // Create the initial population
-    let mut population: Population = VecDeque::with_capacity(problem.pop_size);
+    let mut population: Population<T> = VecDeque::with_capacity(problem.pop_size);
     if problem.init_rand {
         for _i in 0..problem.pop_size {
-            population.push_back(generate(problem));
+            population.push_back(Representation::generate::<T>(problem));
         }
     } else {
         for _i in 0..problem.pop_size {
@@ -78,20 +150,9 @@ fn initialize(problem: &mut Problem) -> Population {
     return population
 }
 
-fn mutate(member : &Member, problem: &mut Problem) -> Member{
-    // Mutation: Point-based mutation of sign or decimals
-    let index = problem.rng.gen_range(0..member.len());
-    let mut new_member = member.to_vec();
-    if index == 0 {
-        new_member[index] = num(0, 1, problem.rng);    
-    } else {
-        new_member[index] = num(problem.min, problem.max, problem.rng);
-    }
-    return new_member
-}
 
-fn crossover(a: &Member, b: &Member, problem : &mut Problem) -> 
-            (Member, Member){
+fn crossover<T:Clone>(a: &Member<T>, b: &Member<T>, problem : &mut Problem<T>) -> 
+               (Member<T>, Member<T>){
     // Point based crossover @ a random point
     // Generate two offspring from two parents
     // With a *single* point exchanged
@@ -104,7 +165,7 @@ fn crossover(a: &Member, b: &Member, problem : &mut Problem) ->
 }
 
 // A faster selection function for k = 2
-fn top_two(population : &Population, problem: &mut Problem) -> 
+fn top_two<T:Clone>(population : &Population<T>, problem: &mut Problem<T>) -> 
           (usize, usize) {
     assert!(population.len() > 1); // Need at least two members
     let (mut ai  , mut bi  ) = (0usize, 0usize);
@@ -137,7 +198,8 @@ fn top_two(population : &Population, problem: &mut Problem) ->
     return (ai, bi);
 }
 
-fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
+fn select<T:Clone>(population : &mut Population<T>, 
+          problem: &mut Problem<T>) -> Metrics {
     // Issue: this calculates fitness twice, and I'm not good enough at
     // Rust to figure out exactly how to fix it 
     // (without restructuring everything)
@@ -168,24 +230,15 @@ fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
     return Metrics{ min  : fitnesses.iter().min().unwrap().clone(),
                     max  : fitnesses.iter().max().unwrap().clone(),
                     best : OrderedFloat(
-                               decode(&population[problem.pop_size - 1])),
+                               Representation::decode::<T>(&population[problem.pop_size - 1])),
                     avg  : avg,
                     stdev : standard_deviation(&fitnesses, Some(avg))}
 }
 
 
-fn decode(x : &Member) -> f64 {
-    // First, map x (vec in RN x {0, 1}) to x in R1
-    let mut mapped : f64 = -1.0 * x[0] as f64;
-    for i in 1..x.len() {
-        mapped += x[i] as f64 / f64::powf(10., i as f64);
-    }
-    return mapped
-}
-
-fn problem_fitness(x : &Member) -> Of64 {
+fn problem_fitness<T:Clone>(x : &Member<T>) -> Of64 {
     // Assume x in [-0.5, 1]
-    let mapped = decode(x);
+    let mapped = Representation::decode::<T>(x);
     if mapped < -0.5 || mapped > 1.0 { 
         // Out of bounds, so use -∞ fitness
         // You would need to update this to make the fitness more generic
@@ -196,13 +249,13 @@ fn problem_fitness(x : &Member) -> Of64 {
 }
 
 
-pub fn generic_ga<'a>(iterations : u32, 
-                     k : usize, length : usize,
-                     mut_rate : f64, cross_rate : f64,
-                     elitism  : usize, minimizing : bool,
-                     init_rand  : bool,
-                     pop_size : usize, metrics_filename : String) -> 
-                    Result<(), Box<dyn Error>>{
+pub fn generic_ga<T:Clone>(
+    iterations : u32, k : usize, length : usize,
+    min : T, max : T, mut_rate : f64, cross_rate : f64,
+    elitism  : usize, minimizing : bool, init_rand  : bool,
+    pop_size : usize, metrics_filename : String) -> 
+
+    Result<(), Box<dyn Error>>{
 
     assert!(mut_rate <= 1. && mut_rate >= 0., "mut_rate={} should be a probability", mut_rate);
     assert!(cross_rate <= 1. && cross_rate >= 0., "cross_rate={} should be a probability", cross_rate);
@@ -213,10 +266,9 @@ pub fn generic_ga<'a>(iterations : u32,
     let write_period = 10;
 
     let mut rng = thread_rng();
-    let mut problem = Problem{
+    let mut problem = Problem::<T>{
         rng: &mut rng,
-        min: 0,
-        max: 9,
+        min: min, max: max,
         k : k, // Select the top-k population members
         length: length,
         pop_size: pop_size,
@@ -232,12 +284,9 @@ pub fn generic_ga<'a>(iterations : u32,
 
     assert!(problem.k <= problem.pop_size, "Problem.k={} should be less than population size={}", problem.k, problem.pop_size);
 
-    let member = generate(&mut problem);
-    println!("Member: {:#?}", &member);
-    println!("Fitness: {}", (problem.fitness)(&member));
-    let mut population = initialize(&mut problem);
+    let mut population = initialize::<T>(&mut problem);
 
-    let metrics = select(&mut population, &mut problem);
+    let metrics = select::<T>(&mut population, &mut problem);
     println!("Initial metrics: {:?}", metrics);
 
     println!("Running GA for {} iterations", iterations);
@@ -255,7 +304,7 @@ pub fn generic_ga<'a>(iterations : u32,
                              .to_vec();
         }
 
-        let mut pool = Population::with_capacity(problem.k);
+        let mut pool = Population::<T>::with_capacity(problem.k);
         for ki in 0..(problem.k - problem.elitism) {
             let ki_n = ki + 1; // Next member
             let ai = problem.pop_size - ki - 1;   // Access from end
@@ -278,7 +327,7 @@ pub fn generic_ga<'a>(iterations : u32,
             // It is important the rate-check is outside of this loop
             if flip(problem.mutation_rate, problem.rng) {
                 for _mut_i in 0..1 {
-                    let new_mem = mutate(&population[ai], &mut problem);
+                    let new_mem = Representation::mutate::<T>(&population[ai], &mut problem);
                     pool.push_back(new_mem);
                 }
             } else {
