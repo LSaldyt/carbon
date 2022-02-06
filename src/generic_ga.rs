@@ -97,7 +97,7 @@ fn crossover(a: &Member, b: &Member, problem : &mut Problem) ->
     // With a *single* point exchanged
     let point = problem.rng.gen_range(0..a.len()); // a as reference 
     let mut new_a = a.to_vec(); // Base on a
-    let mut new_b = a.to_vec(); // Base on a
+    let mut new_b = b.to_vec(); // Base on b
     new_a[point] = b[point];    
     new_b[point] = a[point];    
     return (new_a, new_b)

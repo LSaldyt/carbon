@@ -29,23 +29,33 @@ def save(fig, name, w=1000, h=600):
     call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
 
 def loss(filename, y='loss', color='name', x_label='Generation',
-         legend_title='Metrics', rename=None):
+         legend_title='Metrics', rename=None, title=''):
     df = pd.read_csv(filename)
     if rename is not None:
         df = df.replace(rename)
     fig = go.Figure()
     if isinstance(y, str):
-        fig = px.line(df, y=y)
+        fig = go.Figure()
+        width = 3; mode = 'lines+markers'
+        fig.add_trace(go.Scatter(y=df[y], mode=mode,
+                                 name=y.title(),
+                                 line=dict(
+                                 color=QUAL_COLORS[0],
+                                 width=width)))
     else:
         fig = go.Figure()
         for yi, y_n in enumerate(y):
-            fig.add_trace(go.Scatter(y=df[y_n], mode='lines',
+            if yi == 0:
+                width = 1; mode = 'markers'
+            else:
+                width = 3; mode = 'lines+markers'
+            fig.add_trace(go.Scatter(y=df[y_n], mode=mode,
                                      name=y_n.title(),
                                      line=dict(
                                      color=QUAL_COLORS[yi],
-                                     width=3)))
-    fig.update_layout(font_size=32, xaxis_title=x_label)
-    #, yaxis_title=y.title())
+                                     width=width)))
+    fig.update_layout(font_size=32, xaxis_title=x_label,
+                      yaxis_title=y.title() if isinstance(y, str) else 'Fitness', title_text=title)
     fig.update_xaxes(type='log', tickfont=dict(size=24))
     # fig.update_yaxes(type='log', tickfont=dict(size=24))
     fig.update_layout(legend=dict(yanchor='top', y=1.1,
@@ -53,7 +63,7 @@ def loss(filename, y='loss', color='name', x_label='Generation',
                                   orientation='h',
                                   font_size=24),
                       legend_title_text=legend_title)
-    save(fig, f'compare_{y}', w=1400, h=700)
+    save(fig, f'compare_{y if isinstance(y, str) else "_".join(y)}', w=1400, h=700)
     return df, fig
 
 def visualize():
@@ -74,6 +84,6 @@ def visualize():
     save(fig, f'objective', w=1400, h=700)
 
 if __name__ == '__main__':
-    # loss('metrics.csv', y=['min', 'max', 'avg'])
-    # loss('metrics.csv', y=['best'])
+    loss('metrics.csv', y=['min', 'max', 'avg'])
+    loss('metrics.csv', y='best', title='Best decision variable (x)')
     visualize()
