@@ -24,6 +24,7 @@ struct Problem<'a> {
     pop_size: usize,
     mutation_rate : Of64,
     crossover_rate : Of64,
+    elitism : usize,
     fitness: fn(&Member) -> Of64,
     max_fit : Of64,
     min_fit : Of64
@@ -33,6 +34,7 @@ struct Problem<'a> {
 struct Metrics {
     min   : Of64,
     max   : Of64,
+    best  : Of64,
     avg   : Of64,
     stdev : Of64
 }
@@ -109,9 +111,11 @@ fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
     }
     population.make_contiguous().sort_by_key(|m| (problem.fitness)(m));
     let avg = mean(&fitnesses);
-    return Metrics{ min : fitnesses.iter().min().unwrap().clone(),
-                    max : fitnesses.iter().max().unwrap().clone(),
-                    avg : avg,
+    return Metrics{ min  : fitnesses.iter().min().unwrap().clone(),
+                    max  : fitnesses.iter().max().unwrap().clone(),
+                    best : OrderedFloat(
+                               decode(&population[problem.pop_size - 1])),
+                    avg  : avg,
                     stdev : standard_deviation(&fitnesses, Some(avg))}
 }
 
@@ -141,17 +145,18 @@ fn problem_fitness(x : &Member) -> Of64 {
 pub fn generic_ga<'a>(iterations : u32, 
                      k : usize, length : usize,
                      mut_rate : f64, cross_rate : f64,
+                     elitism  : usize,
                      pop_size : usize,
                      metrics_filename : String) -> 
                     Result<(), Box<dyn Error>>{
 
     assert!(mut_rate <= 1. && mut_rate >= 0., "mut_rate={} should be a probability", mut_rate);
     assert!(cross_rate <= 1. && cross_rate >= 0., "cross_rate={} should be a probability", cross_rate);
+    assert!(elitism < k, "elitism={} should be less than k={}", 
+            elitism, k);
 
     let mut wtr = Writer::from_path(metrics_filename)?;
     let write_period = 10;
-    // The headers may be written automatically?
-    // wtr.write_record(&["min", "max", "avg", "stdev"])?;
 
     let mut rng = thread_rng();
     let mut problem = Problem{
@@ -163,6 +168,7 @@ pub fn generic_ga<'a>(iterations : u32,
         pop_size: pop_size,
         mutation_rate : OrderedFloat(mut_rate),
         crossover_rate : OrderedFloat(cross_rate),
+        elitism : elitism,
         fitness: problem_fitness,
         min_fit: OrderedFloat(-1.0 * f64::INFINITY),
         max_fit: OrderedFloat(f64::INFINITY)
@@ -186,8 +192,15 @@ pub fn generic_ga<'a>(iterations : u32,
         // Restructure the population by replacing the top-k
         // Fill a pool of at least members created via both mutation
         //   and via crossover.
+
+        // First, handle elitism
+        for ei in 0..problem.elitism {
+            population[ei] = population[problem.pop_size - 1 - ei]
+                             .to_vec();
+        }
+
         let mut pool = Population::with_capacity(problem.k);
-        for ki in 0..problem.k {
+        for ki in 0..(problem.k - problem.elitism) {
             let ki_n = ki + 1; // Next member
             let ai = problem.pop_size - ki - 1;   // Access from end
             let bi = problem.pop_size - ki_n - 1; // Access from end
@@ -218,10 +231,12 @@ pub fn generic_ga<'a>(iterations : u32,
                 }
             }
         }
-        let sampled = pool.iter().choose_multiple(&mut problem.rng, 
-                                                  problem.k);
+        // Uniformly sample from offspring pool, subtracting elites
+        let sampled = pool.iter()
+                          .choose_multiple(&mut problem.rng, 
+                                           problem.k - problem.elitism);
         for (ki, mem) in sampled.iter().enumerate() {
-            population[ki] = mem.to_vec(); // Overwrite k-worst members
+            population[problem.elitism + ki] = mem.to_vec(); // Overwrite k-worst members
         }
 
         // Print metrics on final iteration
