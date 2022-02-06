@@ -1,18 +1,16 @@
 import plotly.express as px
 import pandas as pd
-import jax.numpy as jnp
 import numpy     as  np
 
 from subprocess import call
 from pathlib import Path
-from experiments import define_experiments
 
 from plotly.subplots import make_subplots
 from pprint import pprint
 import plotly.graph_objects as go
 import plotly
 
-from . import black_theme
+import white_theme
 
 QUAL_COLORS = plotly.colors.qualitative.G10 + plotly.colors.qualitative.Dark24 + plotly.colors.qualitative.Light24
 
@@ -35,7 +33,7 @@ def loss(filename, y='loss', color='name', x_label='Generation',
     df = pd.read_csv(filename)
     if rename is not None:
         df = df.replace(rename)
-    fig = px.line(df, y=loss, color=color, color_discrete_sequence=QUAL_COLORS)
+    fig = px.line(df, y=y) # , # color=color, color_discrete_sequence=QUAL_COLORS)
     fig.update_traces(line=dict(width=1.5))
     fig.update_layout(font_size=32, xaxis_title=x_label, yaxis_title=y.title())
     fig.update_xaxes(type='log', tickfont=dict(size=24))
@@ -49,4 +47,4 @@ def loss(filename, y='loss', color='name', x_label='Generation',
     return df, fig
 
 if __name__ == '__main__':
-    loss('metrics.csv')
+    loss('metrics.csv', y='max')
