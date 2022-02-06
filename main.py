@@ -10,8 +10,9 @@ from time import time
 
 print(dir(carbon))
 start = time()
-carbon.run_simple_ga(iterations=1000, k=50, length=5,
-                     mut_rate=1.0, cross_rate=1.0,
-                     pop_size=100, metrics_filename='metrics.csv')
+carbon.run_generic_ga(iterations=100000, k=5, length=5,
+                      mut_rate=1.0, cross_rate=1.0, elitism=1,
+                      minimizing=False,
+                      pop_size=10, metrics_filename='metrics.csv')
 end   = time()
 print(f'Duration: {(end - start):0.6f}')

@@ -29,15 +29,25 @@ def save(fig, name, w=1000, h=600):
     call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
 
 def loss(filename, y='loss', color='name', x_label='Generation',
-         legend_title='Models', rename=None):
+         legend_title='Metrics', rename=None):
     df = pd.read_csv(filename)
     if rename is not None:
         df = df.replace(rename)
-    fig = px.line(df, y=y) # , # color=color, color_discrete_sequence=QUAL_COLORS)
-    fig.update_traces(line=dict(width=1.5))
-    fig.update_layout(font_size=32, xaxis_title=x_label, yaxis_title=y.title())
+    fig = go.Figure()
+    if isinstance(y, str):
+        fig = px.line(df, y=y)
+    else:
+        fig = go.Figure()
+        for yi, y_n in enumerate(y):
+            fig.add_trace(go.Scatter(y=df[y_n], mode='lines',
+                                     name=y_n.title(),
+                                     line=dict(
+                                     color=QUAL_COLORS[yi],
+                                     width=3)))
+    fig.update_layout(font_size=32, xaxis_title=x_label)
+    #, yaxis_title=y.title())
     fig.update_xaxes(type='log', tickfont=dict(size=24))
-    fig.update_yaxes(type='log', tickfont=dict(size=24))
+    # fig.update_yaxes(type='log', tickfont=dict(size=24))
     fig.update_layout(legend=dict(yanchor='top', y=1.1,
                                   xanchor='center', x=0.5,
                                   orientation='h',
@@ -46,6 +56,24 @@ def loss(filename, y='loss', color='name', x_label='Generation',
     save(fig, f'compare_{y}', w=1400, h=700)
     return df, fig
 
+def visualize():
+    ''' Visualize the objective function '''
+    x = np.linspace(-0.5, 1.0, 1000)
+    y = x * np.sin(10 * np.pi * x) + 1
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x, y=y, mode='lines',
+        line=dict(color=QUAL_COLORS[0], width=3)))
+    fig.update_layout(font_size=32, xaxis_title='Decision variable (x)',
+                      yaxis_title='Objective function (f)')
+    fig.add_annotation(x=0.85, y=1.85, text='Max',
+                       showarrow=False, yshift=15)
+    fig.add_annotation(x=0.95, y=0.005, text='Min',
+                       showarrow=False, yshift=-10)
+
+    save(fig, f'objective', w=1400, h=700)
+
 if __name__ == '__main__':
-    for metric in ['min', 'max', 'avg', 'stdev']:
-        loss('metrics.csv', y=metric)
+    # loss('metrics.csv', y=['min', 'max', 'avg'])
+    # loss('metrics.csv', y=['best'])
+    visualize()
