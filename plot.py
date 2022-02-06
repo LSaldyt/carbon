@@ -47,4 +47,5 @@ def loss(filename, y='loss', color='name', x_label='Generation',
     return df, fig
 
 if __name__ == '__main__':
-    loss('metrics.csv', y='max')
+    for metric in ['min', 'max', 'avg', 'stdev']:
+        loss('metrics.csv', y=metric)
