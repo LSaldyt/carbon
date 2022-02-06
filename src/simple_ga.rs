@@ -128,7 +128,10 @@ fn problem_fitness(x : &Member) -> Of64 {
 }
 
 
-pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) -> 
+pub fn simple_ga<'a>(iterations : u32, 
+                     k : usize, length : usize,
+                     pop_size : usize,
+                     metrics_filename : String) -> 
                     Result<(), Box<dyn Error>>{
     let mut wtr = Writer::from_path(metrics_filename)?;
     let write_period = 10;
@@ -139,9 +142,9 @@ pub fn simple_ga<'a>(iterations : u32, metrics_filename : String) ->
         rng: &mut rng,
         min: 0,
         max: 9,
-        k : 2, // Select the top-k population members
-        length: 5,
-        pop_size: 100,
+        k : k, // Select the top-k population members
+        length: length,
+        pop_size: pop_size,
         fitness: problem_fitness,
         min_fit: OrderedFloat(-1.0 * f64::INFINITY),
         max_fit: OrderedFloat(f64::INFINITY)

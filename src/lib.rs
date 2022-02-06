@@ -9,8 +9,11 @@ mod simple_ga;
 use simple_ga::*;
 
 #[pyfunction]
-fn run_simple_ga(a: u32, metrics_filename : String) -> PyResult<String> {
-    simple_ga(a, metrics_filename)
+fn run_simple_ga(iterations: u32, 
+                 k : usize, length : usize,
+                 pop_size : usize,
+                 metrics_filename : String) -> PyResult<String> {
+    simple_ga(iterations, k, length, pop_size, metrics_filename)
         .map_err(|err| println!("Simple GA Failed with: {:?}", err)).ok();
     Ok("Done!".to_string())
 }
