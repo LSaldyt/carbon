@@ -5,16 +5,17 @@ use pyo3::wrap_pyfunction;
 mod regev;
 use regev::*;
 
-mod simple_ga;
-use simple_ga::*;
+mod generic_ga;
+use generic_ga::*;
 
 #[pyfunction]
-fn run_simple_ga(iterations: u32, 
+fn run_generic_ga(iterations: u32, 
                  k : usize, length : usize,
+                 mut_rate : f64, cross_rate : f64,
                  pop_size : usize,
                  metrics_filename : String) -> PyResult<String> {
-    simple_ga(iterations, k, length, pop_size, metrics_filename)
-        .map_err(|err| println!("Simple GA Failed with: {:?}", err)).ok();
+    generic_ga(iterations, k, length, mut_rate, cross_rate, pop_size, metrics_filename)
+        .map_err(|err| println!("Generic GA Failed with: {:?}", err)).ok();
     Ok("Done!".to_string())
 }
 
@@ -27,7 +28,7 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 #[pymodule]
 fn libcarbon(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
-    m.add_function(wrap_pyfunction!(run_simple_ga, m)?)?;
+    m.add_function(wrap_pyfunction!(run_generic_ga, m)?)?;
     Ok(())
 }
 

@@ -22,6 +22,8 @@ struct Problem<'a> {
     k : usize,
     length: usize,
     pop_size: usize,
+    mutation_rate : Of64,
+    crossover_rate : Of64,
     fitness: fn(&Member) -> Of64,
     max_fit : Of64,
     min_fit : Of64
@@ -33,6 +35,11 @@ struct Metrics {
     max   : Of64,
     avg   : Of64,
     stdev : Of64
+}
+
+fn flip(p : Of64, rng : &mut ThreadRng) -> bool {
+    let y : Of64 = OrderedFloat(rng.gen());
+    return y < p 
 }
 
 fn num(min: i32, max: i32, rng : &mut ThreadRng) -> i32 {
@@ -88,7 +95,10 @@ fn crossover(a: &Member, b: &Member, problem : &mut Problem) ->
 
 fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
     // Issue: this calculates fitness twice, and I'm not good enough at
-    // Rust to figure out exactly how to fix it.
+    // Rust to figure out exactly how to fix it 
+    // (without restructuring everything)
+    // Actually, fitness should never be recalculated, maybe kept in a 
+    // member-based cache and only re-calculated on mutation
     let mut fitnesses: Vec<Of64> = Vec::with_capacity(problem.pop_size);
     for i in 0..problem.pop_size {
         let f = (problem.fitness)(&population[i]);
@@ -128,14 +138,20 @@ fn problem_fitness(x : &Member) -> Of64 {
 }
 
 
-pub fn simple_ga<'a>(iterations : u32, 
+pub fn generic_ga<'a>(iterations : u32, 
                      k : usize, length : usize,
+                     mut_rate : f64, cross_rate : f64,
                      pop_size : usize,
                      metrics_filename : String) -> 
                     Result<(), Box<dyn Error>>{
+
+    assert!(mut_rate <= 1. && mut_rate >= 0., "mut_rate={} should be a probability", mut_rate);
+    assert!(cross_rate <= 1. && cross_rate >= 0., "cross_rate={} should be a probability", cross_rate);
+
     let mut wtr = Writer::from_path(metrics_filename)?;
     let write_period = 10;
-    wtr.write_record(&["min", "max", "avg", "stdev"])?;
+    // The headers may be written automatically?
+    // wtr.write_record(&["min", "max", "avg", "stdev"])?;
 
     let mut rng = thread_rng();
     let mut problem = Problem{
@@ -145,6 +161,8 @@ pub fn simple_ga<'a>(iterations : u32,
         k : k, // Select the top-k population members
         length: length,
         pop_size: pop_size,
+        mutation_rate : OrderedFloat(mut_rate),
+        crossover_rate : OrderedFloat(cross_rate),
         fitness: problem_fitness,
         min_fit: OrderedFloat(-1.0 * f64::INFINITY),
         max_fit: OrderedFloat(f64::INFINITY)
@@ -171,18 +189,33 @@ pub fn simple_ga<'a>(iterations : u32,
         let mut pool = Population::with_capacity(problem.k);
         for ki in 0..problem.k {
             let ki_n = ki + 1; // Next member
+            let ai = problem.pop_size - ki - 1;   // Access from end
+            let bi = problem.pop_size - ki_n - 1; // Access from end
             if ki_n < problem.k {
                 // Run crossover between two members
-                let (a_new, b_new) = crossover(&population[ki], 
-                                               &population[ki_n], 
-                                               &mut problem);
-                pool.push_back(a_new); pool.push_back(b_new);
+                if flip(problem.crossover_rate, problem.rng) {
+                    let (a_new, b_new) = crossover(&population[ai], 
+                                                   &population[bi], 
+                                                   &mut problem);
+                    pool.push_back(a_new); pool.push_back(b_new);
+                } else {
+                    let (a_new, b_new) = (population[ai].to_vec(), 
+                                          population[bi].to_vec());
+                    pool.push_back(a_new); pool.push_back(b_new);
+                }
             }
             // Create two mutated members for every two crossover members
             //   this makes a uniform choice even between mut<>crossover
-            for _mut_i in 0..1 {
-                let new_mem = mutate(&population[ki], &mut problem);
-                pool.push_back(new_mem);
+            // It is important the rate-check is outside of this loop
+            if flip(problem.mutation_rate, problem.rng) {
+                for _mut_i in 0..1 {
+                    let new_mem = mutate(&population[ai], &mut problem);
+                    pool.push_back(new_mem);
+                }
+            } else {
+                for _i in 0..1 {
+                    pool.push_back(population[ai].to_vec());
+                }
             }
         }
         let sampled = pool.iter().choose_multiple(&mut problem.rng, 
