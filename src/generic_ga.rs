@@ -26,6 +26,7 @@ struct Problem<'a> {
     crossover_rate : Of64,
     elitism : usize,
     minimizing : bool,
+    init_rand  : bool,
     fitness: fn(&Member) -> Of64,
     max_fit : Of64,
     min_fit : Of64
@@ -65,8 +66,14 @@ fn generate(problem: &mut Problem) -> Member {
 fn initialize(problem: &mut Problem) -> Population {
     // Create the initial population
     let mut population: Population = VecDeque::with_capacity(problem.pop_size);
-    for _i in 0..problem.pop_size {
-        population.push_back(generate(problem));
+    if problem.init_rand {
+        for _i in 0..problem.pop_size {
+            population.push_back(generate(problem));
+        }
+    } else {
+        for _i in 0..problem.pop_size {
+            population.push_back(vec![0; problem.length]);
+        }
     }
     return population
 }
@@ -193,6 +200,7 @@ pub fn generic_ga<'a>(iterations : u32,
                      k : usize, length : usize,
                      mut_rate : f64, cross_rate : f64,
                      elitism  : usize, minimizing : bool,
+                     init_rand  : bool,
                      pop_size : usize, metrics_filename : String) -> 
                     Result<(), Box<dyn Error>>{
 
@@ -215,6 +223,7 @@ pub fn generic_ga<'a>(iterations : u32,
         mutation_rate : OrderedFloat(mut_rate),
         crossover_rate : OrderedFloat(cross_rate),
         minimizing : minimizing, 
+        init_rand : init_rand,
         elitism : elitism,
         fitness: problem_fitness,
         min_fit: OrderedFloat(-1.0 * f64::INFINITY),
