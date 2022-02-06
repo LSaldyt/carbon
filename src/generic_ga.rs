@@ -25,6 +25,7 @@ struct Problem<'a> {
     mutation_rate : Of64,
     crossover_rate : Of64,
     elitism : usize,
+    minimizing : bool,
     fitness: fn(&Member) -> Of64,
     max_fit : Of64,
     min_fit : Of64
@@ -95,6 +96,40 @@ fn crossover(a: &Member, b: &Member, problem : &mut Problem) ->
     return (new_a, new_b)
 }
 
+// A faster selection function for k = 2
+fn top_two(population : &Population, problem: &mut Problem) -> 
+          (usize, usize) {
+    assert!(population.len() > 1); // Need at least two members
+    let (mut ai  , mut bi  ) = (0usize, 0usize);
+    let (mut afit, mut bfit);
+    if problem.minimizing {
+        afit = problem.max_fit;
+        bfit = problem.max_fit;
+    } else {
+        afit = problem.min_fit;
+        bfit = problem.min_fit;
+    }
+
+    for mi in 0..population.len() {
+        let member = population.get(mi).expect("Logic Error");
+        let fit: Of64 = (problem.fitness)(&member);
+        if problem.minimizing {
+            if fit < afit {
+                afit = fit; ai = mi;
+            } else if fit < bfit {
+                bfit = fit; bi = mi;
+            }
+        } else {
+            if fit > afit {
+                afit = fit; ai = mi;
+            } else if fit > bfit {
+                bfit = fit; bi = mi;
+            }
+        }
+    }
+    return (ai, bi);
+}
+
 fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
     // Issue: this calculates fitness twice, and I'm not good enough at
     // Rust to figure out exactly how to fix it 
@@ -109,7 +144,19 @@ fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
         fitnesses.push(f);
        }
     }
-    population.make_contiguous().sort_by_key(|m| (problem.fitness)(m));
+    if problem.k > 2 {
+        population.make_contiguous()
+                  .sort_by_key(|m| (problem.fitness)(m));
+    } else {
+        let (ai, bi) = top_two(&population, problem);
+        population.push_back((&population[ai]).to_vec());
+        population.pop_front();
+        // If k = 1, stop here, otherwise push both to front
+        if problem.k == 2 {
+            population.push_back((&population[bi]).to_vec());
+            population.pop_front();
+        }
+    }
     let avg = mean(&fitnesses);
     return Metrics{ min  : fitnesses.iter().min().unwrap().clone(),
                     max  : fitnesses.iter().max().unwrap().clone(),
@@ -145,9 +192,8 @@ fn problem_fitness(x : &Member) -> Of64 {
 pub fn generic_ga<'a>(iterations : u32, 
                      k : usize, length : usize,
                      mut_rate : f64, cross_rate : f64,
-                     elitism  : usize,
-                     pop_size : usize,
-                     metrics_filename : String) -> 
+                     elitism  : usize, minimizing : bool,
+                     pop_size : usize, metrics_filename : String) -> 
                     Result<(), Box<dyn Error>>{
 
     assert!(mut_rate <= 1. && mut_rate >= 0., "mut_rate={} should be a probability", mut_rate);
@@ -168,6 +214,7 @@ pub fn generic_ga<'a>(iterations : u32,
         pop_size: pop_size,
         mutation_rate : OrderedFloat(mut_rate),
         crossover_rate : OrderedFloat(cross_rate),
+        minimizing : minimizing, 
         elitism : elitism,
         fitness: problem_fitness,
         min_fit: OrderedFloat(-1.0 * f64::INFINITY),

@@ -12,9 +12,9 @@ use generic_ga::*;
 fn run_generic_ga(iterations: u32, 
                  k : usize, length : usize,
                  mut_rate : f64, cross_rate : f64,
-                 elitism : usize, pop_size : usize,
+                 elitism : usize, minimizing : bool, pop_size : usize,
                  metrics_filename : String) -> PyResult<String> {
-    generic_ga(iterations, k, length, mut_rate, cross_rate, elitism, pop_size, metrics_filename)
+    generic_ga(iterations, k, length, mut_rate, cross_rate, elitism, minimizing, pop_size, metrics_filename)
         .map_err(|err| println!("Generic GA Failed with: {:?}", err)).ok();
     Ok("Done!".to_string())
 }
