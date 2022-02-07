@@ -21,7 +21,7 @@ fn run_generic_ga(iterations: u32,
 }
 
 #[pyfunction]
-fn run_generic_ga_f64(iterations: u32, 
+fn run_generic_ga_mut_only(iterations: u32, 
                  k : usize, length : usize,
                  min : f64, max : f64,
                  mut_rate : f64, cross_rate : f64,
@@ -35,7 +35,7 @@ fn run_generic_ga_f64(iterations: u32,
 
 #[pymodule]
 fn libcarbon(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(run_generic_ga_f64, m)?)?;
+    m.add_function(wrap_pyfunction!(run_generic_ga_mut_only, m)?)?;
     m.add_function(wrap_pyfunction!(run_generic_ga, m)?)?;
     Ok(())
 }

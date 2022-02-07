@@ -84,6 +84,7 @@ def visualize():
     save(fig, f'objective', w=1400, h=700)
 
 if __name__ == '__main__':
-    loss('metrics.csv', y=['min', 'max', 'avg'])
-    loss('metrics.csv', y='best', title='Best decision variable (x)')
+    filename = 'mut_only_metrics.csv'
+    loss(filename, y=['min', 'max', 'avg'])
+    loss(filename, y='best', title='Best decision variable (x)')
     visualize()
