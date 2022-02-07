@@ -58,6 +58,8 @@ fn flip(p : Of64, rng : &mut ThreadRng) -> bool {
 
 trait Representation<T> {
     fn num(min: T, max: T, rng: &mut ThreadRng) -> T;
+    //fn num(min: T, max: T, rng: &mut ThreadRng) -> T;
+    
     // fn decode<T:CD>(x : &Member::<T>) -> f64;
     // fn mutate<T:CD>(member : &Member<T>, problem: &mut Problem<T>) 
     //         -> Member<T>;
@@ -66,7 +68,7 @@ trait Representation<T> {
 
 // impl<F64> Representation<T>
 // for F64 where f64: Sub<F64>, f64: Mul<<F64 as Sub>::Output> , F64: std::ops::Sub 
-impl<I32> Representation<I32>
+impl<I32> dyn Representation<I32>
 {
     fn num(min: I32, max: I32, rng : &mut ThreadRng) -> I32 {
         let y : f64 = rng.gen();
@@ -259,9 +261,9 @@ impl<I32> Representation<I32>
 // }
 
 
-pub fn generic_ga<T:CD + Sub>(
+pub fn generic_ga(
     iterations : u32, k : usize, length : usize,
-    min : T, max : T, mut_rate : f64, cross_rate : f64,
+    min : i32, max : i32, mut_rate : f64, cross_rate : f64,
     elitism  : usize, minimizing : bool, init_rand  : bool,
     pop_size : usize, metrics_filename : String) -> 
 
