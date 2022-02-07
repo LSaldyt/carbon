@@ -8,14 +8,14 @@ mod generic_ga;
 use generic_ga::*;
 
 #[pyfunction]
-fn run_generic_ga<T:std::clone::Clone>(iterations: u32, 
+fn run_generic_ga(iterations: u32, 
                  k : usize, length : usize,
-                 min : T, max : T,
+                 min : i32, max : i32,
                  mut_rate : f64, cross_rate : f64,
                  elitism : usize, minimizing : bool, init_rand : bool, 
                  pop_size : usize,
                  metrics_filename : String) -> PyResult<String> {
-    generic_ga::<T>(iterations, k, length, min, max, mut_rate, cross_rate, elitism, minimizing, init_rand, pop_size, metrics_filename)
+    generic_ga(iterations, k, length, min, max, mut_rate, cross_rate, elitism, minimizing, init_rand, pop_size, metrics_filename)
         .map_err(|err| println!("Generic GA Failed with: {:?}", err)).ok();
     Ok("Done!".to_string())
 }
@@ -36,5 +36,6 @@ fn run_generic_ga_f64(iterations: u32,
 #[pymodule]
 fn libcarbon(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_generic_ga_f64, m)?)?;
+    m.add_function(wrap_pyfunction!(run_generic_ga, m)?)?;
     Ok(())
 }

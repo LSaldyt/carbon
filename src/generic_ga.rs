@@ -12,13 +12,13 @@ use serde::{Serialize};
 use ordered_float::OrderedFloat;
 type Of64 = OrderedFloat<f64>;
 
-type Member = Vec<f64>; // In our problem, members are simple vectors
+type Member = Vec<i32>; // In our problem, members are simple vectors
 type Population = VecDeque<Member>; // Population is normal vec of members
 
 struct Problem<'a> {
     rng: &'a mut ThreadRng,
-    min: f64,
-    max: f64,
+    min: i32,
+    max: i32,
     k : usize,
     length: usize,
     pop_size: usize,
@@ -46,34 +46,18 @@ fn flip(p : Of64, rng : &mut ThreadRng) -> bool {
     return y < p 
 }
 
-fn num(min: f64, max: f64, rng : &mut ThreadRng) -> f64 {
-    let y : f64 = rng.gen();
-    return y * (max - min) - min // Scale & shift
-}
-
-fn decode(x : &Member) -> f64 {
-    let mut mapped : f64 = x[0];
-    for i in 1..x.len() {
-        mapped *= x[i];
-    }
-    return mapped
-}
-
-fn mutate(member : &Member, problem: &mut Problem) ->       
-          Member{
-    // Mutation: Point-based mutation of sign or decimals
-    assert!(member.len() > 1);
-    let index = problem.rng.gen_range(0..member.len());
-    let mut new_member = member.to_vec();
-    new_member[index] = num(problem.min, problem.max, problem.rng);
-    return new_member
+fn num(min: i32, max: i32, rng : &mut ThreadRng) -> i32 {
+    // Silly convenience function because "gen_range"
+    // is much longer to type than "num"
+    return rng.gen_range(min..max+1);
 }
 
 fn generate(problem: &mut Problem) -> Member {
     // Generate a random length l vector constrained to a range (min, max)
     // The first "bit" is reserved for sign
-    let mut initial = vec![0.; problem.length];
-    for i in 0..problem.length {
+    let mut initial = vec![0; problem.length];
+    initial[0] = num(0, 1, problem.rng);
+    for i in 1..problem.length {
         initial[i] = num(problem.min, problem.max, problem.rng);
     }
     return initial
@@ -88,16 +72,26 @@ fn initialize(problem: &mut Problem) -> Population {
         }
     } else {
         for _i in 0..problem.pop_size {
-            // population.push_back(vec![0; problem.length]);
-            population.push_back(vec![0.; problem.length]);
+            population.push_back(vec![0; problem.length]);
         }
     }
     return population
 }
 
+fn mutate(member : &Member, problem: &mut Problem) -> Member{
+    // Mutation: Point-based mutation of sign or decimals
+    let index = problem.rng.gen_range(0..member.len());
+    let mut new_member = member.to_vec();
+    if index == 0 {
+        new_member[index] = num(0, 1, problem.rng);    
+    } else {
+        new_member[index] = num(problem.min, problem.max, problem.rng);
+    }
+    return new_member
+}
 
 fn crossover(a: &Member, b: &Member, problem : &mut Problem) -> 
-               (Member, Member){
+            (Member, Member){
     // Point based crossover @ a random point
     // Generate two offspring from two parents
     // With a *single* point exchanged
@@ -143,8 +137,7 @@ fn top_two(population : &Population, problem: &mut Problem) ->
     return (ai, bi);
 }
 
-fn select(population : &mut Population, 
-          problem: &mut Problem) -> Metrics {
+fn select(population : &mut Population, problem: &mut Problem) -> Metrics {
     // Issue: this calculates fitness twice, and I'm not good enough at
     // Rust to figure out exactly how to fix it 
     // (without restructuring everything)
@@ -181,6 +174,15 @@ fn select(population : &mut Population,
 }
 
 
+fn decode(x : &Member) -> f64 {
+    // First, map x (vec in RN x {0, 1}) to x in R1
+    let mut mapped : f64 = -1.0 * x[0] as f64;
+    for i in 1..x.len() {
+        mapped += x[i] as f64 / f64::powf(10., i as f64);
+    }
+    return mapped
+}
+
 fn problem_fitness(x : &Member) -> Of64 {
     // Assume x in [-0.5, 1]
     let mapped = decode(x);
@@ -194,13 +196,14 @@ fn problem_fitness(x : &Member) -> Of64 {
 }
 
 
-pub fn generic_ga(
-    iterations : u32, k : usize, length : usize,
-    min : f64, max : f64, mut_rate : f64, cross_rate : f64,
-    elitism  : usize, minimizing : bool, init_rand  : bool,
-    pop_size : usize, metrics_filename : String) -> 
-
-    Result<(), Box<dyn Error>>{
+pub fn generic_ga<'a>(iterations : u32, 
+                      k : usize, length : usize,
+                      min : i32, max : i32,
+                      mut_rate : f64, cross_rate : f64,
+                      elitism  : usize, minimizing : bool,
+                      init_rand  : bool,
+                      pop_size : usize, metrics_filename : String) -> 
+                    Result<(), Box<dyn Error>>{
 
     assert!(mut_rate <= 1. && mut_rate >= 0., "mut_rate={} should be a probability", mut_rate);
     assert!(cross_rate <= 1. && cross_rate >= 0., "cross_rate={} should be a probability", cross_rate);
@@ -213,7 +216,8 @@ pub fn generic_ga(
     let mut rng = thread_rng();
     let mut problem = Problem{
         rng: &mut rng,
-        min: min, max: max,
+        min: min,
+        max: max,
         k : k, // Select the top-k population members
         length: length,
         pop_size: pop_size,
@@ -229,6 +233,9 @@ pub fn generic_ga(
 
     assert!(problem.k <= problem.pop_size, "Problem.k={} should be less than population size={}", problem.k, problem.pop_size);
 
+    let member = generate(&mut problem);
+    println!("Member: {:#?}", &member);
+    println!("Fitness: {}", (problem.fitness)(&member));
     let mut population = initialize(&mut problem);
 
     let metrics = select(&mut population, &mut problem);
@@ -301,3 +308,4 @@ pub fn generic_ga(
     }
     Ok(())
 }
+

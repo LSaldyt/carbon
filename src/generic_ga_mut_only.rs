@@ -194,7 +194,7 @@ fn problem_fitness(x : &Member) -> Of64 {
 }
 
 
-pub fn generic_ga(
+pub fn generic_ga_mut_only(
     iterations : u32, k : usize, length : usize,
     min : f64, max : f64, mut_rate : f64, cross_rate : f64,
     elitism  : usize, minimizing : bool, init_rand  : bool,
