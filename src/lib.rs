@@ -26,7 +26,7 @@ fn run_generic_ga_f64(iterations: u32,
                  elitism : usize, minimizing : bool, init_rand : bool, 
                  pop_size : usize,
                  metrics_filename : String) -> PyResult<String> {
-    generic_ga::<f64>(iterations, k, length, min, max, mut_rate, cross_rate, elitism, minimizing, init_rand, pop_size, metrics_filename)
+    generic_ga(iterations, k, length, min, max, mut_rate, cross_rate, elitism, minimizing, init_rand, pop_size, metrics_filename)
         .map_err(|err| println!("Generic GA Failed with: {:?}", err)).ok();
     Ok("Done!".to_string())
 }
