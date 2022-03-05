@@ -6,11 +6,17 @@ authors = ["LSaldyt <lucassaldyt@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.10"
 plotly = "^5.5.0"
 pandas = "^1.4.0"
 numpy = "^1.22.2"
 psutil = "^5.9.0"
+h5py = "^3.6.0"
+progressbar = "^2.5"
+ply = "^3.11"
+colorlog = "^6.6.0"
+scipy = "^1.8.0"
+settings = {git = "https://github.com/LSaldyt/settings", rev = "main"}
 
 [tool.poetry.dev-dependencies]
 
