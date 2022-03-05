@@ -62,7 +62,7 @@ fn decode(x : &Member) -> f64 {
 fn mutate(member : &Member, problem: &mut Problem) ->       
           Member{
     // Mutation: Point-based mutation of sign or decimals
-    assert!(member.len() > 1);
+    assert!(member.len() > 0);
     let index = problem.rng.gen_range(0..member.len());
     let mut new_member = member.to_vec();
     new_member[index] = num(problem.min, problem.max, problem.rng);
