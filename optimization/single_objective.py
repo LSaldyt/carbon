@@ -64,5 +64,17 @@ def holder_table(x, y):
 def mccormick(x, y):
     return np.sin(x + y) + (x - y)**2 - 1.5*x + 2.5*x + 1
 
-def schaffer(x, y):
+def schaffer2(x, y):
+    return (0.5 +
+                (np.sin(x**2 - y**2)**2 - 0.5) /
+                (1. + 1e-3 * (x**2 + y**2)**2))
 
+def schaffer4(x, y):
+    return (0.5 +
+                (np.cos(np.sin(np.abs(x**2 - y**2)))**2 - 0.5) /
+                (1. + 1e-3 * (x**2 + y**2)**2))
+
+def styblinski_tang(x, y):
+    return ((x**4 - 16*x**2 + 5*x +
+             y**4 - 16*y**2 + 5*y)
+            / 2)
