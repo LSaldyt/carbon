@@ -148,7 +148,8 @@ def main(args):
     # f_name = 'ackley'
     # f_name = 'fonseca_fleming'
     # f_name = 'bihn_korn'
-    for f_name in all_functions:
+    # for f_name in all_functions:
+    for f_name in ['rastrigrin']:
         print(f'Starting {f_name}')
         func = all_functions[f_name]
         test = func(0, 0)

@@ -44,6 +44,12 @@ def surface(X, Y, Z, title='', filename='surface'):
 
     save(fig, filename, w=w, h=h)
 
+def contour(X, Y, Z, p0, p1):
+    fig = go.Figure(data = go.Contour(x=X[:, 0], y=Y[0], z=Z, colorscale='viridis'))
+    fig.add_trace(go.Scatter(x=p0, y=p1, mode='markers',
+        name='Path', line=dict(color=QUAL_COLORS[1], width=3)))
+    fig.show()
+
 def plot_all_funcs():
     n = 1001
     r = 10
@@ -78,12 +84,12 @@ def heatmap(*compare, labels=None, title=None):
     return fig
 
 def save(fig, name, w=1000, h=600):
-    # fig.show()
+    fig.show()
     fig.write_image(f'data/{name}.svg', width=w, height=h)
     fig.write_image(f'data/{name}.png', width=w, height=h)
     call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
 
-def markers(l, legend_title='Metrics', title='', filename='markers'):
+def markers(l, legend_title='Variants', title='', filename='markers'):
     fig = go.Figure()
     width = 2; mode = 'markers'
     for yi, (name, x, y) in enumerate(l):
@@ -91,17 +97,17 @@ def markers(l, legend_title='Metrics', title='', filename='markers'):
             name=name, line=dict(color=QUAL_COLORS[yi], width=width)))
     fig.update_layout(font_size=32, xaxis_title='X',
         yaxis_title='Y', title_text=title)
-    fig.update_xaxes(type='log', tickfont=dict(size=24))
+    # fig.update_xaxes(type='log', tickfont=dict(size=24))
     # fig.update_yaxes(type='log', tickfont=dict(size=24))
     fig.update_layout(legend=dict(yanchor='top', y=1.1,
                                   xanchor='center', x=0.5,
                                   orientation='h',
-                                  font_size=24),
+                                  font_size=32),
                       legend_title_text=legend_title)
     save(fig, filename, w=1400, h=700)
     return fig
 
-def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='', filename='error_bars'):
+def error_bars(x, bars, x_label='Generation', legend_title='Variants', title='', filename='error_bars'):
     fig = go.Figure()
     width = 2; mode = 'lines+markers'
     for yi, (name, y, err) in enumerate(bars):
@@ -120,7 +126,7 @@ def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='', 
     save(fig, filename, w=1400, h=700)
 
 def compare(filename, x='generation', y='loss', color='name', x_label='Generation',
-         legend_title='Metrics', rename=None, title=''):
+         legend_title='Variants', rename=None, title=''):
     df = pd.read_csv(filename)
     print(df)
     if rename is not None:
@@ -153,13 +159,17 @@ def split_by(df, field):
     mask = df[field]
     return df[mask == True], df[mask == False]
 
-def analyze(filename, n=128):
-    df = pd.read_csv(filename)
-    x = list(range(n))
+def get_ablations(df):
     afpo, po = split_by(df, 'age_enabled')
     afpo_exact, afpo = split_by(afpo, 'exact')
     po_exact, po     = split_by(po,   'exact')
     ablations = dict(afpo_exact=afpo_exact, afpo=afpo, po_exact=po_exact, po=po)
+    return ablations
+
+def analyze(filename, n=128):
+    df = pd.read_csv(filename)
+    x = list(range(n))
+    ablations = get_ablations(df)
     bars = []
     for k, v in ablations.items():
         means = []; devs = [];
@@ -167,7 +177,7 @@ def analyze(filename, n=128):
             filt = v[v['generation'] == g - 1]['f0']
             means.append(filt.mean()); devs.append(filt.std())
         bars.append((k, means, devs))
-    error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='', filename=filename[5:-4])
+    error_bars(x, bars, x_label='Generation', legend_title='Variants', title='', filename=filename[5:-4])
 
 def pareto_progress(df):
     fig = px.scatter(df, x='x', y='y', color='age',
@@ -177,23 +187,79 @@ def pareto_progress(df):
 
 def progress(filename):
     df = pd.read_csv(filename)
-    df = df[df['generation'] > 64]
+    df = df[df['generation'] > 32]
     afpo, po = split_by(df, 'age_enabled')
     pareto_progress(afpo)
     pareto_progress(po)
 
-    final = df[df['generation'] == 127]
-    afpo, po = split_by(final, 'age_enabled')
-    markers((('afpo', afpo['x'], afpo['y']), ('po', po['x'], po['y'])),
-            filename=filename[5:-4])
+def apply_layout(fig, xaxis_title='X', yaxis_title='Y'):
+    fig.update_layout(font_size=48, xaxis_title=xaxis_title, yaxis_title=yaxis_title)
+    legend_title = 'Variants'
+    fig.update_layout(legend=dict(yanchor='top', y=1.1,
+                                  xanchor='center', x=0.5,
+                                  orientation='h',
+                                  font_size=48),
+                      legend_title_text=legend_title)
+
+def duration(filename):
+    df = pd.read_csv(filename)
+    ablations = get_ablations(df)
+    fig = go.Figure()
+    for i, (name, ablation) in enumerate(ablations.items()):
+        try:
+            title, exact = name.split('_')
+        except:
+            title = name; exact = ''
+        title = title.upper(); exact = exact.title()
+        title = title + ' ' + exact
+        fig.add_trace(go.Bar(
+            name=title,
+            marker_color=QUAL_COLORS[i],
+            x=ablation['generation'],
+            y=[ablation['duration'].mean()],
+            error_y=dict(type='data', array=[ablation['duration'].std()])))
+    apply_layout(fig, yaxis_title='Duration', xaxis_title='Variant')
+    save(fig, filename[5:-4] + '_duration', 1920, 1080)
+
+def frontier(filename):
+    df = pd.read_csv(filename)
+    for g in [2**n-1 for n in range(6)] + [47]:
+        for p0, p1 in (('x', 'y'), ('f0', 'f1')):
+            final = df[df['generation'] == g]
+            final['tag'] = (final['age_enabled'].apply(lambda age : 'age' if age else 'single')
+                    + final['exact'].apply(lambda exact : ' exact' if exact else ' approx'))
+            fig = px.scatter(final, x=p0, y=p1, color='tag', marginal_x='violin',
+                    marginal_y='violin', color_discrete_sequence=QUAL_COLORS)
+            fig['data'][0]['marker']['opacity'] = 0.5
+            apply_layout(fig)
+            save(fig, filename[5:-4] + f'_final_{g}_' + ''.join((p0, p1)), 1920, 1080)
+
+def contour_optimization(f_name, filename):
+    n = 101
+    r = 10
+    nc = complex(n)
+    X, Y = np.mgrid[-r:r:nc, -r:r:nc]
+    func = all_functions[f_name]
+
+    df = pd.read_csv(filename)
+
+    Z = func(X, Y)
+    contour(X, Y, Z, df['x'], df['y'])
 
 if __name__ == '__main__':
+    # plot_specific('rastrigrin')
     tag = 'approx'
-    for name in all_functions:
-        metrics = f'data/{name}_{tag}_metrics.csv'
-        long    = f'data/{name}_{tag}_long.csv'
-        analyze(metrics, n=64)
-        # compare(metrics, y='age')
+    # tag = ''
+    # names = list(all_functions.keys())
+    names = ['rastrigrin']
+    # names = ['fonseca_fleming']
+    if tag != '': tag += '_'
+    for name in names:
+        metrics = f'data/{name}_{tag}metrics.csv'
+        long    = f'data/{name}_{tag}long.csv'
+        # frontier(long)
+        # analyze(metrics, n=64)
         # progress(long)
-        # plot_specific('rastrigrin')
+        # duration(metrics)
+        contour_optimization(name, long)
 
