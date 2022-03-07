@@ -81,7 +81,7 @@ def decode(v, s):
     return (-1. * max(v[0],1) +
             np.sum(v[1:] / (10.**np.arange(-s.pre_bits, s.post_bits))))
 
-def age_fitness_pareto_optimization(func, settings):
+def age_fitness_pareto_optimization(func, metrics, settings):
     s = settings # Shorthand, conventional
     ''' Represent population as a large tensor for in-place ops
         Guaranteed to be slightly confusing, but fairly efficient.
@@ -91,19 +91,16 @@ def age_fitness_pareto_optimization(func, settings):
     workspace  = np.zeros((s.work_size, s.entry), dtype=np.float32)
     population = workspace[:s.pop_size, :] # View, not copy
     initialize(population, settings)
-    for g in range(settings.generations):
+    for g in range(s.generations):
         # Crossover, mutation, aging, and fitness calculation:
         step(workspace, population, func, settings)
         # Age-fitness pareto selection process
         calculate_pareto_rank(workspace, settings)
         # Just sort by pareto rank (NSGA2)
         pareto_sort(workspace, settings)
-
-def write_metrics():
-    with open('metrics.csv', 'w', newline='') as metrics_file:
-        metrics = csv.writer(metrics_file)
-        metrics.writerow(['fitness'])
-        metrics.writerow([np.mean(workspace[:s.pop_size, s.size])])
+        metrics.writerow([g, s.seed, s.age_fitness,
+                          np.mean(workspace[:s.pop_size, s.size])])
+    return metrics
 
 def main(args):
     # f_name = 'viennet'
@@ -126,12 +123,21 @@ def main(args):
         pre_bits=0, post_bits=8,
         mutation_probability=0.1, objectives = objectives,
         base_max=10, # For base 10
-        generations=100,
+        num_metrics=5,
+        generations=30,
         age_fitness=True)
     settings.update(entry=settings.size + settings.objectives + 1,
         work_size = 2 * settings.pop_size,
         rng = nr.default_rng(settings.seed))
-    age_fitness_pareto_optimization(func, settings)
+    with open('metrics.csv', 'w', newline='') as metrics_file:
+        metrics = csv.writer(metrics_file)
+        metrics.writerow(['generation', 'seed', 'age', 'fitness'])
+        for age_fitness in (True, False):
+            print(age_fitness)
+            for seed in range(16):
+                print(seed)
+                settings.update(seed=seed, age_fitness=age_fitness)
+                age_fitness_pareto_optimization(func, metrics, settings)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

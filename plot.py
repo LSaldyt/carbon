@@ -29,34 +29,23 @@ def save(fig, name, w=1000, h=600):
     fig.write_image(f'data/{name}.png', width=w, height=h)
     call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
 
-def loss(filename, y='loss', color='name', x_label='Generation',
+def compare(filename, x='generation', y='loss', color='name', x_label='Generation',
          legend_title='Metrics', rename=None, title=''):
     df = pd.read_csv(filename)
     if rename is not None:
         df = df.replace(rename)
     fig = go.Figure()
-    if isinstance(y, str):
-        fig = go.Figure()
-        width = 3; mode = 'lines+markers'
-        fig.add_trace(go.Scatter(y=df[y], mode=mode,
-                                 name=y.title(),
-                                 line=dict(
-                                 color=QUAL_COLORS[0],
-                                 width=width)))
-    else:
-        fig = go.Figure()
-        for yi, y_n in enumerate(y):
-            if yi == 0:
-                width = 1; mode = 'markers'
-            else:
-                width = 3; mode = 'lines+markers'
-            fig.add_trace(go.Scatter(y=df[y_n], mode=mode,
-                                     name=y_n.title(),
-                                     line=dict(
-                                     color=QUAL_COLORS[yi],
-                                     width=width)))
+    x = df[x]
+    for age in (True, False):
+        width = 3; mode = 'lines+markers';
+        color = [] * len(x)
+        filt  = df[df['age'] == age]
+        yi = 0 if age else 1
+        fig.add_trace(go.Scatter(x=x, y=filt[y], mode=mode,
+            name=y.title(), line=dict( color=QUAL_COLORS[yi], width=width)))
     fig.update_layout(font_size=32, xaxis_title=x_label,
-                      yaxis_title=y.title() if isinstance(y, str) else 'Fitness', title_text=title)
+        yaxis_title=y.title() if isinstance(y, str) else 'Fitness',
+        title_text=title)
     fig.update_xaxes(type='log', tickfont=dict(size=24))
     # fig.update_yaxes(type='log', tickfont=dict(size=24))
     fig.update_layout(legend=dict(yanchor='top', y=1.1,
@@ -64,7 +53,7 @@ def loss(filename, y='loss', color='name', x_label='Generation',
                                   orientation='h',
                                   font_size=24),
                       legend_title_text=legend_title)
-    save(fig, f'compare_{y if isinstance(y, str) else "_".join(y)}', w=1400, h=700)
+    save(fig, f'compare', w=1400, h=700)
     return df, fig
 
 def visualize():
@@ -88,14 +77,16 @@ def surface(X, Y, Z, title='', filename='surface'):
     fig = go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='viridis')])
     fig.update_traces(contours_z=dict(show=True, usecolormap=True,
         project_z=True))
-    fig.update_layout(title=title, autosize=False,
-                      width=1920, height=1080,
-                      margin=dict(l=65, r=50, b=65, t=90))
+    w = 1080; h = 1080
+    fig.update_layout(title='', autosize=False,
+                      width=w, height=h,
+                      margin=dict(l=0, r=0, b=0, t=0))
+                      # margin=dict(l=65, r=50, b=65, t=90))
 
-    save(fig, filename, w=1920, h=1080)
+    save(fig, filename, w=w, h=h)
 
 def plot_all_funcs():
-    n = 101
+    n = 1001
     r = 10
     nc = complex(n)
     X, Y = np.mgrid[-r:r:nc, -r:r:nc]
@@ -114,13 +105,13 @@ def plot_specific(name):
     r = 10
     nc = complex(n)
     X, Y = np.mgrid[-r:r:nc, -r:r:nc]
-    name, func = all_functions[name]
+    func = all_functions[name]
 
     Z = func(X, Y)
     surface(X, Y, Z, title=name.replace('_', ' ').title(), filename=name)
 
 if __name__ == '__main__':
     filename = 'metrics.csv'
-    loss(filename, y=['fitness'])
-    plot_all_funcs()
+    compare(filename, y='fitness')
+    # plot_specific('rastrigrin')
 
