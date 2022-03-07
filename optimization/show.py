@@ -1,15 +1,7 @@
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-import single_objective
-import multi_objective
-
-single_obj_functions = [(name, getattr(single_objective, name))
-                        for name in dir(single_objective)
-                        if '__' not in name and name != 'np']
-multi_obj_functions = [(name, getattr(multi_objective, name))
-                       for name in dir(multi_objective)
-                       if '__' not in name and name != 'np']
+from opt import *
 
 def surface(X, Y, Z, title=''):
     fig = go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='viridis')])
