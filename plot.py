@@ -83,14 +83,14 @@ def save(fig, name, w=1000, h=600):
     fig.write_image(f'data/{name}.png', width=w, height=h)
     call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
 
-def lines(x, l, x_label='Generation', legend_title='Metrics', title=''):
+def markers(l, legend_title='Metrics', title=''):
     fig = go.Figure()
-    width = 2; mode = 'lines+markers'
-    for yi, (name, y) in enumerate(l):
+    width = 2; mode = 'markers'
+    for yi, (name, x, y) in enumerate(l):
         fig.add_trace(go.Scatter(x=x, y=y, mode=mode,
             name=name, line=dict(color=QUAL_COLORS[yi], width=width)))
-    fig.update_layout(font_size=32, xaxis_title=x_label,
-        yaxis_title='Fitness', title_text=title)
+    fig.update_layout(font_size=32, xaxis_title='X',
+        yaxis_title='Y', title_text=title)
     fig.update_xaxes(type='log', tickfont=dict(size=24))
     # fig.update_yaxes(type='log', tickfont=dict(size=24))
     fig.update_layout(legend=dict(yanchor='top', y=1.1,
@@ -99,7 +99,7 @@ def lines(x, l, x_label='Generation', legend_title='Metrics', title=''):
                                   font_size=24),
                       legend_title_text=legend_title)
     save(fig, f'lines', w=1400, h=700)
-    return df, fig
+    return fig
 
 def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title=''):
     fig = go.Figure()
@@ -110,7 +110,7 @@ def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title=''):
             name=name, line=dict(color=QUAL_COLORS[yi], width=width)))
     fig.update_layout(font_size=32, xaxis_title=x_label,
         yaxis_title='Fitness', title_text=title)
-    fig.update_xaxes(type='log', tickfont=dict(size=24))
+    # fig.update_xaxes(type='log', tickfont=dict(size=24))
     # fig.update_yaxes(type='log', tickfont=dict(size=24))
     fig.update_layout(legend=dict(yanchor='top', y=1.1,
                                   xanchor='center', x=0.5,
@@ -122,14 +122,15 @@ def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title=''):
 def compare(filename, x='generation', y='loss', color='name', x_label='Generation',
          legend_title='Metrics', rename=None, title=''):
     df = pd.read_csv(filename)
+    print(df)
     if rename is not None:
         df = df.replace(rename)
     fig = go.Figure()
     x = df[x]
-    for age in (True, False):
+    for age_enabled in (True, False):
         width = 2; mode = 'lines+markers';
-        filt  = df[df['age'] == age]
-        if age:
+        filt  = df[df['age_enabled'] == age_enabled]
+        if age_enabled:
             yi = 0; name = 'AFPO'
         else:
             yi = 1; name = 'PO'
@@ -148,26 +149,52 @@ def compare(filename, x='generation', y='loss', color='name', x_label='Generatio
     save(fig, f'compare', w=1400, h=700)
     return df, fig
 
+def split_by(df, field):
+    mask = df[field]
+    return df[mask == True], df[mask == False]
+
 def analyze(filename):
     df = pd.read_csv(filename)
-    x = []
-    afpo_m = []; afpo_std = [];
-    po_m   = [];   po_std = [];
-    for g in range(128):
-        filt = df[df['generation'] == g - 1]
-        age  = filt['age']
-        afpo = filt[age == True]; po = filt[age == False]
-        afpo = afpo['fitness'];   po = po['fitness']
-        x.append(g)
-        afpo_m.append(afpo.mean()); afpo_std.append(afpo.std())
-        po_m.append(po.mean()); po_std.append(po.std())
-    error_bars(x, [('AFPO', afpo_m, afpo_std), ('PO', po_m, po_std)],
-               x_label='Generation', legend_title='Metrics', title='')
+    n = 1024
+    x = list(range(n))
+    afpo, po = split_by(df, 'age_enabled')
+    afpo_exact, afpo = split_by(afpo, 'exact')
+    po_exact, po     = split_by(po,   'exact')
+    ablations = dict(afpo_exact=afpo_exact, afpo=afpo, po_exact=po_exact, po=po)
+    bars = []
+    for k, v in ablations.items():
+        means = []; devs = [];
+        for g in range(n):
+            filt = v[v['generation'] == g - 1]['f0']
+            means.append(filt.mean()); devs.append(filt.std())
+        bars.append((k, means, devs))
+    error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='')
 
+def pareto_progress(df):
+    fig = px.scatter(df, x='x', y='y', color='age',
+        color_continuous_scale='Viridis')
+    fig['data'][0]['marker']['opacity'] = 0.5
+    save(fig, 'progress', w=1400, h=700)
+
+def progress(filename):
+    df = pd.read_csv(filename)
+    df = df[df['generation'] > 64]
+    afpo, po = split_by(df, 'age_enabled')
+    pareto_progress(afpo)
+    pareto_progress(po)
+
+    final = df[df['generation'] == 127]
+    afpo, po = split_by(final, 'age_enabled')
+    markers((('afpo', afpo['x'], afpo['y']), ('po', po['x'], po['y'])))
 
 if __name__ == '__main__':
-    filename = 'metrics.csv'
-    analyze(filename)
-    # compare(filename, y='fitness')
+    name = 'rastrigrin'
+    name = 'sphere'
+    # name = 'bihn_korn'
+    metrics = f'data/{name}_metrics.csv'
+    long    = f'data/{name}_long.csv'
+    # compare(metrics, y='age')
+    # progress(long)
+    analyze(metrics)
     # plot_specific('rastrigrin')
 

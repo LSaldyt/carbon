@@ -1,8 +1,8 @@
 import numpy        as np
 import numpy.random as nr
 from settings import Settings
+from time import time
 import sys, csv, os
-
 from optimization import *
 
 def bitvec(rng, shape):
@@ -28,11 +28,17 @@ def initialize(population, s):
     population[:, :s.size] = s.rng.integers(low=0, high=s.base_max,
             size=(s.pop_size, s.size))
 
+
+def random_pairs(s, high=None, size=None):
+    size = size if size is not None else s.work_size
+    high = high if high is not None else s.pop_size
+    pairs = s.rng.integers(low=0, high=high, size=size)
+    for i in range(size // 2):
+        ai = pairs[2 * i]; bi = pairs[2 * i + 1]
+        yield ai, bi
+
 def step(workspace, population, func, s):
-    parents = s.rng.integers(low=0, high=s.pop_size, size=s.work_size)
-    for i in range(s.pop_size):
-        # Index into parents, selected uniformly
-        ai = parents[2 * i]; bi = parents[2 * i + 1]
+    for i, (ai, bi) in enumerate(random_pairs(s)):
         a  = population[ai, :]; b = population[bi, :]
         age   = max(a[s.size + 1], b[s.size + 1]) # Inherit age
         child = random_crossover(s.rng, a[:s.size], b[:s.size])
@@ -45,7 +51,15 @@ def step(workspace, population, func, s):
     for i in range(s.work_size):
         workspace[i, s.size:-2] = fitness(workspace[i, :s.size], func, s)
 
-def calculate_pareto_rank(workspace, s):
+def calculate_dominated(i, j, s, objectives):
+    dominated = True
+    for m in range(s.objectives):
+        # Assume all objectives minimizing
+        if objectives[i, m] < objectives[j, m]:
+            dominated = False
+    return dominated
+
+def calculate_exact_pareto_rank(workspace, s):
     objectives = workspace[:, s.size:-1] # View
     dom_counts = workspace[:, -1]        # View
     # Brute force pareto front calculation :)
@@ -53,13 +67,17 @@ def calculate_pareto_rank(workspace, s):
         for j in range(s.work_size):
             if i == j:
                 continue
-            dominated = True
-            for m in range(s.objectives):
-                # Assume all objectives minimizing
-                if objectives[i, m] < objectives[j, m]:
-                    dominated = False
-            if dominated:
+            if calculate_dominated(i, j, s, objectives):
                 dom_counts[i] += 1
+
+def calculate_tournament_pareto_rank(workspace, s):
+    objectives = workspace[:, s.size:-1] # View
+    dom_counts = workspace[:, -1]        # View
+    for i, j in random_pairs(s, size=s.work_size * s.estimate_factor, high=s.work_size):
+        if i == j:
+            continue
+        if calculate_dominated(i, j, s, objectives):
+            dom_counts[i] += 1
 
 def pareto_sort(workspace, s):
     dom_counts = workspace[:, -1] # View
@@ -73,15 +91,19 @@ def pareto_sort(workspace, s):
 
 def fitness(v, func, s):
     xv, yv = np.split(v, np.array([s.member_size]))
-    x = decode(xv, s); y = decode(yv, s)
+    x, y = decode_section(v, s)
     return func(x, y)
+
+def decode_section(v, s):
+    xv, yv = np.split(v, np.array([s.member_size]))
+    return decode(xv, s), decode(yv, s)
 
 def decode(v, s):
     l = v.shape[0] - 1;
     return (-1. * max(v[0],1) +
             np.sum(v[1:] / (10.**np.arange(-s.pre_bits, s.post_bits))))
 
-def age_fitness_pareto_optimization(func, metrics, settings):
+def age_fitness_pareto_optimization(func, metrics, long, settings):
     s = settings # Shorthand, conventional
     ''' Represent population as a large tensor for in-place ops
         Guaranteed to be slightly confusing, but fairly efficient.
@@ -92,23 +114,37 @@ def age_fitness_pareto_optimization(func, metrics, settings):
     population = workspace[:s.pop_size, :] # View, not copy
     initialize(population, settings)
     for g in range(s.generations):
+        start = time()
         # Crossover, mutation, aging, and fitness calculation:
         step(workspace, population, func, settings)
         # Age-fitness pareto selection process
-        calculate_pareto_rank(workspace, settings)
-        # Just sort by pareto rank (NSGA2)
+        if s.exact:
+            # Just sort by pareto rank (NSGA2)
+            calculate_exact_pareto_rank(workspace, settings)
+        else:
+            # Do tournament selection as in the original paper
+            calculate_tournament_pareto_rank(workspace, settings)
+        end = time()
         pareto_sort(workspace, settings)
-        metrics.writerow([g, s.seed, s.age_fitness,
-                          np.mean(workspace[:s.pop_size, s.size])])
+        preamble = [g, s.seed, s.age_fitness, s.exact, end - start]
+        metrics.writerow(preamble +
+                [np.mean(workspace[:s.pop_size, s.size + o])
+                 for o in range(s.objectives)])
+        for m in range(s.pop_size):
+            x, y = decode_section(population[m, :s.size], s)
+            long.writerow(preamble + [x, y] +
+                [population[m, s.size + o]
+                 for o in range(s.objectives)])
     return metrics
 
 def main(args):
     # f_name = 'viennet'
-    # f_name = 'sphere'
+    f_name = 'sphere'
     # f_name = 'rosenbrock'
-    f_name = 'rastrigrin'
+    # f_name = 'rastrigrin'
     # f_name = 'ackley'
     # f_name = 'fonseca_fleming'
+    # f_name = 'bihn_korn'
     func = all_functions[f_name]
     test = func(0, 0)
     try:
@@ -118,26 +154,34 @@ def main(args):
     dimensions  = 2 # Higher dimensions not supported
     member_size = 8 + 1 # 4+8 bits for num, 1 bit for sign
     seed=2022
-    settings = Settings(seed=seed, size=member_size*2, pop_size=32,
+    n_seeds = 1
+    settings = Settings(seed=seed, size=member_size*2, pop_size=8,
         member_size=member_size,
         pre_bits=0, post_bits=8,
         mutation_probability=0.1, objectives = objectives,
         base_max=10, # For base 10
         num_metrics=5,
-        generations=128,
+        generations=48,
+        estimate_factor=4,
+        exact=True,
         age_fitness=True)
     settings.update(entry=settings.size + settings.objectives + 1,
         work_size = 2 * settings.pop_size,
         rng = nr.default_rng(settings.seed))
-    with open('metrics.csv', 'w', newline='') as metrics_file:
+    pre = f'data/{f_name}'
+    with open(f'{pre}_metrics.csv', 'w', newline='') as metrics_file:
         metrics = csv.writer(metrics_file)
-        metrics.writerow(['generation', 'seed', 'age', 'fitness'])
-        for age_fitness in (True, False):
-            print(age_fitness)
-            for seed in range(32):
-                print(seed)
-                settings.update(seed=seed, age_fitness=age_fitness)
-                age_fitness_pareto_optimization(func, metrics, settings)
+        preamble = ['generation', 'seed', 'age_enabled', 'exact', 'duration']
+        fits = [f'f{i}' for i in range(objectives - 1)] + ['age']
+        metrics.writerow(preamble + fits)
+        with open(f'{pre}_long.csv', 'w', newline='') as long_file:
+            long = csv.writer(long_file)
+            long.writerow(preamble + ['x', 'y'] + fits)
+            for exact in (True,False):
+                for age_fitness in (True,False):
+                    for seed in range(n_seeds):
+                        settings.update(seed=seed, exact=exact, age_fitness=age_fitness)
+                        age_fitness_pareto_optimization(func, metrics, long, settings)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
