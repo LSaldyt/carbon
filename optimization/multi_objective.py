@@ -39,7 +39,7 @@ def ctp1(x, y):
     return (x, (1+y)*np.exp(-(x/(1+y))))
 
 def constr_ex(x, y):
-    return (x, (1+y)/x)
+    return (x, (1+y)/(x+1e-16))
 
 def viennet(x, y): # Three objectives
     return ((0.5*(x**2+y**2) + np.sin(x**2 + y**2)),

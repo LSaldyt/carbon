@@ -88,6 +88,9 @@ def pareto_sort(workspace, s):
     if s.age_fitness:
         workspace[:s.pop_size, s.size + s.objectives - 1] += 1
     # Otherwise, age is always zero and not considered
+    # Replace the worst n_new members with regenerated ones
+    workspace[s.pop_size-s.n_new:s.pop_size, :s.size] = s.rng.integers(low=0, high=s.base_max,
+            size=(s.n_new, s.size))
 
 def fitness(v, func, s):
     xv, yv = np.split(v, np.array([s.member_size]))
@@ -139,49 +142,53 @@ def age_fitness_pareto_optimization(func, metrics, long, settings):
 
 def main(args):
     # f_name = 'viennet'
-    f_name = 'sphere'
+    # f_name = 'sphere'
     # f_name = 'rosenbrock'
     # f_name = 'rastrigrin'
     # f_name = 'ackley'
     # f_name = 'fonseca_fleming'
     # f_name = 'bihn_korn'
-    func = all_functions[f_name]
-    test = func(0, 0)
-    try:
-        objectives = len(test) + 1
-    except TypeError:
-        objectives = 2
-    dimensions  = 2 # Higher dimensions not supported
-    member_size = 8 + 1 # 4+8 bits for num, 1 bit for sign
-    seed=2022
-    n_seeds = 1
-    settings = Settings(seed=seed, size=member_size*2, pop_size=8,
-        member_size=member_size,
-        pre_bits=0, post_bits=8,
-        mutation_probability=0.1, objectives = objectives,
-        base_max=10, # For base 10
-        num_metrics=5,
-        generations=48,
-        estimate_factor=4,
-        exact=True,
-        age_fitness=True)
-    settings.update(entry=settings.size + settings.objectives + 1,
-        work_size = 2 * settings.pop_size,
-        rng = nr.default_rng(settings.seed))
-    pre = f'data/{f_name}'
-    with open(f'{pre}_metrics.csv', 'w', newline='') as metrics_file:
-        metrics = csv.writer(metrics_file)
-        preamble = ['generation', 'seed', 'age_enabled', 'exact', 'duration']
-        fits = [f'f{i}' for i in range(objectives - 1)] + ['age']
-        metrics.writerow(preamble + fits)
-        with open(f'{pre}_long.csv', 'w', newline='') as long_file:
-            long = csv.writer(long_file)
-            long.writerow(preamble + ['x', 'y'] + fits)
-            for exact in (True,False):
-                for age_fitness in (True,False):
-                    for seed in range(n_seeds):
-                        settings.update(seed=seed, exact=exact, age_fitness=age_fitness)
-                        age_fitness_pareto_optimization(func, metrics, long, settings)
+    for f_name in all_functions:
+        print(f'Starting {f_name}')
+        func = all_functions[f_name]
+        test = func(0, 0)
+        try:
+            objectives = len(test) + 1
+        except TypeError:
+            objectives = 2
+        dimensions  = 2 # Higher dimensions not supported
+        member_size = 8 + 1 # 4+8 bits for num, 1 bit for sign
+        seed=2022
+        n_seeds = 32
+        settings = Settings(seed=seed, size=member_size*2, pop_size=32,
+            member_size=member_size,
+            pre_bits=0, post_bits=8,
+            mutation_probability=0.1, objectives = objectives,
+            base_max=10, # For base 10
+            generations=128,
+            estimate_factor=16,
+            n_new=4,
+            exact=True,
+            age_fitness=True)
+        settings.update(entry=settings.size + settings.objectives + 1,
+            work_size = 2 * settings.pop_size,
+            rng = nr.default_rng(settings.seed))
+        print(settings)
+        pre = f'data/{f_name}'
+        with open(f'{pre}_approx_metrics.csv', 'w', newline='') as metrics_file:
+            metrics = csv.writer(metrics_file)
+            preamble = ['generation', 'seed', 'age_enabled', 'exact', 'duration']
+            fits = [f'f{i}' for i in range(objectives - 1)] + ['age']
+            metrics.writerow(preamble + fits)
+            with open(f'{pre}_approx_long.csv', 'w', newline='') as long_file:
+                long = csv.writer(long_file)
+                long.writerow(preamble + ['x', 'y'] + fits)
+                for exact in (True,False):
+                    for age_fitness in (True,False):
+                        for seed in range(n_seeds):
+                            print(f'{f_name}: exact={exact:5}, age={age_fitness:5}, seed={seed:3}', flush=True)
+                            settings.update(seed=seed, exact=exact, age_fitness=age_fitness)
+                            age_fitness_pareto_optimization(func, metrics, long, settings)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

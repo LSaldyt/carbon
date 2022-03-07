@@ -78,12 +78,12 @@ def heatmap(*compare, labels=None, title=None):
     return fig
 
 def save(fig, name, w=1000, h=600):
-    fig.show()
+    # fig.show()
     fig.write_image(f'data/{name}.svg', width=w, height=h)
     fig.write_image(f'data/{name}.png', width=w, height=h)
     call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
 
-def markers(l, legend_title='Metrics', title=''):
+def markers(l, legend_title='Metrics', title='', filename='markers'):
     fig = go.Figure()
     width = 2; mode = 'markers'
     for yi, (name, x, y) in enumerate(l):
@@ -98,10 +98,10 @@ def markers(l, legend_title='Metrics', title=''):
                                   orientation='h',
                                   font_size=24),
                       legend_title_text=legend_title)
-    save(fig, f'lines', w=1400, h=700)
+    save(fig, filename, w=1400, h=700)
     return fig
 
-def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title=''):
+def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='', filename='error_bars'):
     fig = go.Figure()
     width = 2; mode = 'lines+markers'
     for yi, (name, y, err) in enumerate(bars):
@@ -117,7 +117,7 @@ def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title=''):
                                   orientation='h',
                                   font_size=24),
                       legend_title_text=legend_title)
-    save(fig, f'lines', w=1400, h=700)
+    save(fig, filename, w=1400, h=700)
 
 def compare(filename, x='generation', y='loss', color='name', x_label='Generation',
          legend_title='Metrics', rename=None, title=''):
@@ -153,9 +153,8 @@ def split_by(df, field):
     mask = df[field]
     return df[mask == True], df[mask == False]
 
-def analyze(filename):
+def analyze(filename, n=128):
     df = pd.read_csv(filename)
-    n = 1024
     x = list(range(n))
     afpo, po = split_by(df, 'age_enabled')
     afpo_exact, afpo = split_by(afpo, 'exact')
@@ -168,7 +167,7 @@ def analyze(filename):
             filt = v[v['generation'] == g - 1]['f0']
             means.append(filt.mean()); devs.append(filt.std())
         bars.append((k, means, devs))
-    error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='')
+    error_bars(x, bars, x_label='Generation', legend_title='Metrics', title='', filename=filename[5:-4])
 
 def pareto_progress(df):
     fig = px.scatter(df, x='x', y='y', color='age',
@@ -185,16 +184,16 @@ def progress(filename):
 
     final = df[df['generation'] == 127]
     afpo, po = split_by(final, 'age_enabled')
-    markers((('afpo', afpo['x'], afpo['y']), ('po', po['x'], po['y'])))
+    markers((('afpo', afpo['x'], afpo['y']), ('po', po['x'], po['y'])),
+            filename=filename[5:-4])
 
 if __name__ == '__main__':
-    name = 'rastrigrin'
-    name = 'sphere'
-    # name = 'bihn_korn'
-    metrics = f'data/{name}_metrics.csv'
-    long    = f'data/{name}_long.csv'
-    # compare(metrics, y='age')
-    # progress(long)
-    analyze(metrics)
-    # plot_specific('rastrigrin')
+    tag = 'approx'
+    for name in all_functions:
+        metrics = f'data/{name}_{tag}_metrics.csv'
+        long    = f'data/{name}_{tag}_long.csv'
+        analyze(metrics, n=64)
+        # compare(metrics, y='age')
+        # progress(long)
+        # plot_specific('rastrigrin')
 
