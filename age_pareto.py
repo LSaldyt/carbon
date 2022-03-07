@@ -1,7 +1,7 @@
 import numpy        as np
 import numpy.random as nr
 from settings import Settings
-import sys, os
+import sys, csv, os
 
 from optimization import *
 
@@ -67,33 +67,13 @@ def pareto_sort(workspace, s):
     workspace[:] = workspace[rank_index]
     workspace[:, -1] = 0 # Reset dom counts
     # Increment age for the selected members
-    workspace[:s.pop_size, s.size + s.objectives - 1] += 1
-
-def age_fitness_pareto_optimization(func, settings):
-    s = settings # Shorthand, conventional
-    ''' Represent population as a large tensor for in-place ops
-        Guaranteed to be slightly confusing, but fairly efficient.
-        Workspace is a large matrix twice the population size, containing
-        bitvectors for each member & all offspring, and then columns for
-        fitness and age (or for the number of objectives) '''
-    workspace  = np.zeros((s.work_size, s.entry), dtype=np.float32)
-    population = workspace[:s.pop_size, :] # View, not copy
-    # print(workspace)
-    initialize(population, settings)
-    # print(workspace)
-    for g in range(settings.generations):
-        # Crossover, mutation, aging, and fitness calculation:
-        step(workspace, population, func, settings)
-        # print(workspace)
-        # Age-fitness pareto selection process:
-        calculate_pareto_rank(workspace, settings)
-        # Just sort by pareto rank (NSGA2)
-        pareto_sort(workspace, settings)
+    if s.age_fitness:
+        workspace[:s.pop_size, s.size + s.objectives - 1] += 1
+    # Otherwise, age is always zero and not considered
 
 def fitness(v, func, s):
     xv, yv = np.split(v, np.array([s.member_size]))
     x = decode(xv, s); y = decode(yv, s)
-    print(x, y)
     return func(x, y)
 
 def decode(v, s):
@@ -101,11 +81,37 @@ def decode(v, s):
     return (-1. * max(v[0],1) +
             np.sum(v[1:] / (10.**np.arange(-s.pre_bits, s.post_bits))))
 
+def age_fitness_pareto_optimization(func, settings):
+    s = settings # Shorthand, conventional
+    ''' Represent population as a large tensor for in-place ops
+        Guaranteed to be slightly confusing, but fairly efficient.
+        Workspace is a large matrix twice the population size, containing
+        vectors for each member & all offspring, and then columns for
+        fitness and age (or for the number of objectives) '''
+    workspace  = np.zeros((s.work_size, s.entry), dtype=np.float32)
+    population = workspace[:s.pop_size, :] # View, not copy
+    initialize(population, settings)
+    for g in range(settings.generations):
+        # Crossover, mutation, aging, and fitness calculation:
+        step(workspace, population, func, settings)
+        # Age-fitness pareto selection process
+        calculate_pareto_rank(workspace, settings)
+        # Just sort by pareto rank (NSGA2)
+        pareto_sort(workspace, settings)
+
+def write_metrics():
+    with open('metrics.csv', 'w', newline='') as metrics_file:
+        metrics = csv.writer(metrics_file)
+        metrics.writerow(['fitness'])
+        metrics.writerow([np.mean(workspace[:s.pop_size, s.size])])
+
 def main(args):
     # f_name = 'viennet'
     # f_name = 'sphere'
     # f_name = 'rosenbrock'
-    f_name = 'ackley'
+    f_name = 'rastrigrin'
+    # f_name = 'ackley'
+    # f_name = 'fonseca_fleming'
     func = all_functions[f_name]
     test = func(0, 0)
     try:
@@ -114,13 +120,14 @@ def main(args):
         objectives = 2
     dimensions  = 2 # Higher dimensions not supported
     member_size = 8 + 1 # 4+8 bits for num, 1 bit for sign
-
-    settings = Settings(seed=2022, size=member_size*2, pop_size=100,
+    seed=2022
+    settings = Settings(seed=seed, size=member_size*2, pop_size=100,
         member_size=member_size,
         pre_bits=0, post_bits=8,
         mutation_probability=0.1, objectives = objectives,
         base_max=10, # For base 10
-        generations=10000)
+        generations=100,
+        age_fitness=True)
     settings.update(entry=settings.size + settings.objectives + 1,
         work_size = 2 * settings.pop_size,
         rng = nr.default_rng(settings.seed))

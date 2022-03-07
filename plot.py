@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 from pprint import pprint
 import plotly.graph_objects as go
 import plotly
+from optimization import *
 
 import white_theme
 
@@ -83,8 +84,43 @@ def visualize():
 
     save(fig, f'objective', w=1400, h=700)
 
+def surface(X, Y, Z, title='', filename='surface'):
+    fig = go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='viridis')])
+    fig.update_traces(contours_z=dict(show=True, usecolormap=True,
+        project_z=True))
+    fig.update_layout(title=title, autosize=False,
+                      width=1920, height=1080,
+                      margin=dict(l=65, r=50, b=65, t=90))
+
+    save(fig, filename, w=1920, h=1080)
+
+def plot_all_funcs():
+    n = 101
+    r = 10
+    nc = complex(n)
+    X, Y = np.mgrid[-r:r:nc, -r:r:nc]
+
+    for name, single in single_obj_functions.items():
+        Z = single(X, Y)
+        surface(X, Y, Z, title=name.replace('_', ' ').title(), filename=name)
+
+    for name, multi in multi_obj_functions.items():
+        Z = multi(X, Y)
+        for i, Zi in enumerate(Z):
+            surface(X, Y, Zi, title=(name.replace('_', ' ').title() + ' Objective ' + str(i)), filename=name)
+
+def plot_specific(name):
+    n = 101
+    r = 10
+    nc = complex(n)
+    X, Y = np.mgrid[-r:r:nc, -r:r:nc]
+    name, func = all_functions[name]
+
+    Z = func(X, Y)
+    surface(X, Y, Z, title=name.replace('_', ' ').title(), filename=name)
+
 if __name__ == '__main__':
-    filename = 'mut_only_metrics.csv'
-    loss(filename, y=['min', 'max', 'avg'])
-    loss(filename, y='best', title='Best decision variable (x)')
-    visualize()
+    filename = 'metrics.csv'
+    loss(filename, y=['fitness'])
+    plot_all_funcs()
+

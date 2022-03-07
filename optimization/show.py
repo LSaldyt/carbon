@@ -14,9 +14,6 @@ def surface(X, Y, Z, title=''):
     fig.show()
 
 def main():
-    print(single_obj_functions)
-    print(multi_obj_functions)
-
     n = 101
     r = 10
     nc = complex(n)
