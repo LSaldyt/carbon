@@ -118,13 +118,13 @@ def main(args):
     dimensions  = 2 # Higher dimensions not supported
     member_size = 8 + 1 # 4+8 bits for num, 1 bit for sign
     seed=2022
-    settings = Settings(seed=seed, size=member_size*2, pop_size=100,
+    settings = Settings(seed=seed, size=member_size*2, pop_size=32,
         member_size=member_size,
         pre_bits=0, post_bits=8,
         mutation_probability=0.1, objectives = objectives,
         base_max=10, # For base 10
         num_metrics=5,
-        generations=30,
+        generations=128,
         age_fitness=True)
     settings.update(entry=settings.size + settings.objectives + 1,
         work_size = 2 * settings.pop_size,
@@ -134,7 +134,7 @@ def main(args):
         metrics.writerow(['generation', 'seed', 'age', 'fitness'])
         for age_fitness in (True, False):
             print(age_fitness)
-            for seed in range(16):
+            for seed in range(32):
                 print(seed)
                 settings.update(seed=seed, age_fitness=age_fitness)
                 age_fitness_pareto_optimization(func, metrics, settings)

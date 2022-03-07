@@ -15,47 +15,6 @@ import white_theme
 
 QUAL_COLORS = plotly.colors.qualitative.G10 + plotly.colors.qualitative.Dark24 + plotly.colors.qualitative.Light24
 
-def heatmap(*compare, labels=None, title=None):
-    fig = make_subplots(rows=1, cols=len(compare), subplot_titles=labels)
-    for i, c in enumerate(compare):
-        fig.add_trace(go.Heatmap(z=c, zmin=0, zmax=1), row=1, col=i + 1)
-    fig.update_layout(title_text=title)
-    save(fig, f'{title.replace(" ", "_")}_heatmap', w=1000, h=800)
-    return fig
-
-def save(fig, name, w=1000, h=600):
-    fig.show()
-    fig.write_image(f'data/{name}.svg', width=w, height=h)
-    fig.write_image(f'data/{name}.png', width=w, height=h)
-    call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
-
-def compare(filename, x='generation', y='loss', color='name', x_label='Generation',
-         legend_title='Metrics', rename=None, title=''):
-    df = pd.read_csv(filename)
-    if rename is not None:
-        df = df.replace(rename)
-    fig = go.Figure()
-    x = df[x]
-    for age in (True, False):
-        width = 3; mode = 'lines+markers';
-        color = [] * len(x)
-        filt  = df[df['age'] == age]
-        yi = 0 if age else 1
-        fig.add_trace(go.Scatter(x=x, y=filt[y], mode=mode,
-            name=y.title(), line=dict( color=QUAL_COLORS[yi], width=width)))
-    fig.update_layout(font_size=32, xaxis_title=x_label,
-        yaxis_title=y.title() if isinstance(y, str) else 'Fitness',
-        title_text=title)
-    fig.update_xaxes(type='log', tickfont=dict(size=24))
-    # fig.update_yaxes(type='log', tickfont=dict(size=24))
-    fig.update_layout(legend=dict(yanchor='top', y=1.1,
-                                  xanchor='center', x=0.5,
-                                  orientation='h',
-                                  font_size=24),
-                      legend_title_text=legend_title)
-    save(fig, f'compare', w=1400, h=700)
-    return df, fig
-
 def visualize():
     ''' Visualize the objective function '''
     x = np.linspace(-0.5, 1.0, 1000)
@@ -110,8 +69,105 @@ def plot_specific(name):
     Z = func(X, Y)
     surface(X, Y, Z, title=name.replace('_', ' ').title(), filename=name)
 
+def heatmap(*compare, labels=None, title=None):
+    fig = make_subplots(rows=1, cols=len(compare), subplot_titles=labels)
+    for i, c in enumerate(compare):
+        fig.add_trace(go.Heatmap(z=c, zmin=0, zmax=1), row=1, col=i + 1)
+    fig.update_layout(title_text=title)
+    save(fig, f'{title.replace(" ", "_")}_heatmap', w=1000, h=800)
+    return fig
+
+def save(fig, name, w=1000, h=600):
+    fig.show()
+    fig.write_image(f'data/{name}.svg', width=w, height=h)
+    fig.write_image(f'data/{name}.png', width=w, height=h)
+    call(f'rsvg-convert -f pdf -o data/{name}.pdf data/{name}.svg', shell=True)
+
+def lines(x, l, x_label='Generation', legend_title='Metrics', title=''):
+    fig = go.Figure()
+    width = 2; mode = 'lines+markers'
+    for yi, (name, y) in enumerate(l):
+        fig.add_trace(go.Scatter(x=x, y=y, mode=mode,
+            name=name, line=dict(color=QUAL_COLORS[yi], width=width)))
+    fig.update_layout(font_size=32, xaxis_title=x_label,
+        yaxis_title='Fitness', title_text=title)
+    fig.update_xaxes(type='log', tickfont=dict(size=24))
+    # fig.update_yaxes(type='log', tickfont=dict(size=24))
+    fig.update_layout(legend=dict(yanchor='top', y=1.1,
+                                  xanchor='center', x=0.5,
+                                  orientation='h',
+                                  font_size=24),
+                      legend_title_text=legend_title)
+    save(fig, f'lines', w=1400, h=700)
+    return df, fig
+
+def error_bars(x, bars, x_label='Generation', legend_title='Metrics', title=''):
+    fig = go.Figure()
+    width = 2; mode = 'lines+markers'
+    for yi, (name, y, err) in enumerate(bars):
+        fig.add_trace(go.Scatter(x=x, y=y, mode=mode, error_y=dict(
+            type='data', array=err, visible=True),
+            name=name, line=dict(color=QUAL_COLORS[yi], width=width)))
+    fig.update_layout(font_size=32, xaxis_title=x_label,
+        yaxis_title='Fitness', title_text=title)
+    fig.update_xaxes(type='log', tickfont=dict(size=24))
+    # fig.update_yaxes(type='log', tickfont=dict(size=24))
+    fig.update_layout(legend=dict(yanchor='top', y=1.1,
+                                  xanchor='center', x=0.5,
+                                  orientation='h',
+                                  font_size=24),
+                      legend_title_text=legend_title)
+    save(fig, f'lines', w=1400, h=700)
+
+def compare(filename, x='generation', y='loss', color='name', x_label='Generation',
+         legend_title='Metrics', rename=None, title=''):
+    df = pd.read_csv(filename)
+    if rename is not None:
+        df = df.replace(rename)
+    fig = go.Figure()
+    x = df[x]
+    for age in (True, False):
+        width = 2; mode = 'lines+markers';
+        filt  = df[df['age'] == age]
+        if age:
+            yi = 0; name = 'AFPO'
+        else:
+            yi = 1; name = 'PO'
+        fig.add_trace(go.Scatter(x=x, y=filt[y], mode=mode,
+            name=name, line=dict(color=QUAL_COLORS[yi], width=width)))
+    fig.update_layout(font_size=32, xaxis_title=x_label,
+        yaxis_title=y.title() if isinstance(y, str) else 'Fitness',
+        title_text=title)
+    fig.update_xaxes(type='log', tickfont=dict(size=24))
+    # fig.update_yaxes(type='log', tickfont=dict(size=24))
+    fig.update_layout(legend=dict(yanchor='top', y=1.1,
+                                  xanchor='center', x=0.5,
+                                  orientation='h',
+                                  font_size=24),
+                      legend_title_text=legend_title)
+    save(fig, f'compare', w=1400, h=700)
+    return df, fig
+
+def analyze(filename):
+    df = pd.read_csv(filename)
+    x = []
+    afpo_m = []; afpo_std = [];
+    po_m   = [];   po_std = [];
+    for g in range(128):
+        filt = df[df['generation'] == g - 1]
+        age  = filt['age']
+        afpo = filt[age == True]; po = filt[age == False]
+        afpo = afpo['fitness'];   po = po['fitness']
+        x.append(g)
+        afpo_m.append(afpo.mean()); afpo_std.append(afpo.std())
+        po_m.append(po.mean()); po_std.append(po.std())
+    error_bars(x, [('AFPO', afpo_m, afpo_std), ('PO', po_m, po_std)],
+               x_label='Generation', legend_title='Metrics', title='')
+
+
 if __name__ == '__main__':
     filename = 'metrics.csv'
-    compare(filename, y='fitness')
+    analyze(filename)
+    # compare(filename, y='fitness')
     # plot_specific('rastrigrin')
 
